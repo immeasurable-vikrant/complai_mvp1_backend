@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment (lives in backend/venv/)
+backend/venv/
+venv/
+.venv/
+
+# Environment & secrets
+.env
+*.env
+backend/.env
+backend/google-creds.json
+*.pem
+*.p12
+
+# Uploads (user documents — never commit)
+backend/uploads/
+backend/uploads_qa/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Pytest / coverage
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# LangChain / LangSmith cache
+.langchain/
+langchain_cache/
