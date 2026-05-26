@@ -432,6 +432,7 @@ async def whatsapp_webhook(
         source_channel = DocumentSourceChannel.whatsapp,
         status         = DocumentStatus.queued,
         month_year     = month_year,
+        media_url      = media_url or None,  # store so we can requeue if worker crashes
     )
     db.add(document)
     db.flush()

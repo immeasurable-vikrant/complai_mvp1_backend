@@ -183,7 +183,8 @@ class Document(Base):
     file_type      = Column(SAEnum(DocumentFileType), nullable=False)
     source_channel = Column(SAEnum(DocumentSourceChannel), default=DocumentSourceChannel.upload)
     status         = Column(SAEnum(DocumentStatus), default=DocumentStatus.queued, index=True)
-    month_year     = Column(String(7), nullable=True)  # "2025-10" format
+    month_year     = Column(String(7), nullable=True)   # "2025-10" format
+    media_url      = Column(String(500), nullable=True) # Twilio media URL (WhatsApp uploads only — for requeue if worker crashes)
     cost_usd       = Column(Float, default=0.0)        # total API cost for this doc
     claude_cost_usd = Column(Float, default=0.0, nullable=True)  # Anthropic Claude cost
     docai_cost_usd  = Column(Float, default=0.0, nullable=True)  # Google DocAI cost
