@@ -387,16 +387,22 @@ def process_bank_statement(
     client_id: int,
     firm_id: int,
     month_year: str,
+    whatsapp_sender: str = "",   # set when upload came from WhatsApp
+    client_name: str = "",
+    media_url: str = "",         # Twilio media URL to download from
+    account_sid: str = "",       # Twilio Basic Auth user
 ):
     """
     Bank statement extraction pipeline (no LangGraph — simpler flow).
 
     Steps:
+      0. Download file from Twilio if WhatsApp upload (media_url set)
       1. Extract transactions + statement metadata (pdfplumber tables → Claude Haiku)
       2. Save BankStatementMeta record (account info, opening/closing balance, balance validation)
       3. Classify voucher types (receipt/payment/contra/journal)
       4. Fuzzy-match party names against known vendors
       5. Save BankTransaction records (with reference + mode fields)
+      6. Send WhatsApp reply with summary (if WhatsApp upload)
     """
     from models.db import (
         BankTransaction, BankStatementMeta, Document, DocumentStatus,
@@ -411,6 +417,36 @@ def process_bank_statement(
         job = db.query(JobStatus).filter(JobStatus.id == job_id).first()
         if not job:
             return
+
+        # ── Step 0: Download media file (WhatsApp uploads only) ──
+        if media_url and not Path(file_path).exists():
+            logger.info(f"[worker/bank] Downloading media from Twilio for job={job_id}")
+            import httpx as _httpx
+            _token = os.getenv("TWILIO_AUTH_TOKEN", "")
+            try:
+                with _httpx.Client(timeout=120.0) as _hclient:
+                    resp = _hclient.get(
+                        media_url,
+                        auth=(account_sid, _token),
+                        follow_redirects=True,
+                    )
+                    resp.raise_for_status()
+                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+                Path(file_path).write_bytes(resp.content)
+                logger.info(f"[worker/bank] Downloaded {len(resp.content):,} bytes → {file_path}")
+            except Exception as dl_err:
+                logger.error(f"[worker/bank] Media download failed for job={job_id}: {dl_err}")
+                job.status        = JobStatusEnum.error
+                job.error_message = f"File download failed: {dl_err}"
+                db.commit()
+                if whatsapp_sender:
+                    try:
+                        from agents.whatsapp_sender import send_whatsapp as _send_wa
+                        _send_wa(whatsapp_sender,
+                                 "⚠️ We had trouble downloading your file. Please try sending it again.")
+                    except Exception:
+                        pass
+                return
 
         job.status = JobStatusEnum.processing
         db.commit()
@@ -519,6 +555,31 @@ def process_bank_statement(
         job.status = JobStatusEnum.done
         db.commit()
         logger.info(f"[worker] Bank job {job_id} done: {len(transactions)} transactions, balance_ok={bal_ok}")
+
+        # ── Step 6: WhatsApp completion reply ──────────────────
+        if whatsapp_sender:
+            try:
+                from agents.whatsapp_sender import send_whatsapp as _send_wa
+                credits = sum(t.get("credit") or 0 for t in transactions)
+                debits  = sum(t.get("debit")  or 0 for t in transactions)
+                bal_line = ""
+                if bal_ok is True:
+                    bal_line = "\n✅ Opening → Closing balance verified"
+                elif bal_ok is False:
+                    bal_line = "\n⚠️ Balance mismatch — please check manually"
+                name = client_name or "there"
+                msg = (
+                    f"🏦 Bank statement processed, {name}!\n\n"
+                    f"📊 *{len(transactions)} transactions* found\n"
+                    f"  Credits: ₹{credits:,.2f}\n"
+                    f"  Debits:  ₹{debits:,.2f}"
+                    f"{bal_line}\n\n"
+                    "Login to the dashboard to review and export. 📋"
+                )
+                _send_wa(whatsapp_sender, msg)
+                logger.info(f"[worker] WhatsApp bank reply sent to {whatsapp_sender}")
+            except Exception as wa_err:
+                logger.warning(f"[worker] WhatsApp bank reply failed: {wa_err}")
 
     except Exception as exc:
         logger.error(f"[worker] Bank job {job_id} failed: {exc}", exc_info=True)

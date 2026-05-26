@@ -37,7 +37,7 @@ from models.db import (
     Client, Document, DocumentFileType, DocumentSourceChannel,
     DocumentStatus, Firm, JobStatus, JobStatusEnum, get_db,
 )
-from workers.celery_app import process_document
+from workers.celery_app import process_document, process_bank_statement
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -123,6 +123,20 @@ def _extract_month_year(text: str) -> str:
 
 def _current_month_year() -> str:
     return datetime.utcnow().strftime("%Y-%m")
+
+
+# ── Document type detection from caption ───────────────────
+# If the caption contains bank / statement / passbook keywords → bank statement.
+# Everything else → invoice (the default).
+_BANK_KEYWORDS = re.compile(
+    r'\b(bank\s*statement|statement|passbook|bank\s*pass\s*book|account\s*statement|'
+    r'ledger|savings\s*account|current\s*account|ca\s*statement|bank)\b',
+    re.IGNORECASE,
+)
+
+def _is_bank_statement(caption: str) -> bool:
+    """Return True if the caption strongly suggests a bank statement."""
+    return bool(_BANK_KEYWORDS.search(caption))
 
 
 # ── Supported media types from WhatsApp ────────────────────
@@ -413,37 +427,59 @@ async def whatsapp_webhook(
     db.commit()
     db.refresh(job)
 
+    # ── 7. Detect document type from caption ──────────────
+    is_bank = _is_bank_statement(body_text)
+    doc_type_label = "bank statement" if is_bank else "invoice"
+
     logger.info(
         f"[whatsapp] Queued doc={document.id} job={job.id} "
-        f"client={client.name} ({sender_phone})"
+        f"client={client.name} ({sender_phone}) type={doc_type_label}"
     )
 
-    # ── 7. Queue Celery job ────────────────────────────────
-    # Pass media_url + account_sid so the worker can download the file itself.
-    process_document.delay(
-        job_id          = job.id,
-        file_path       = str(dest_path),
-        document_id     = document.id,
-        client_id       = client.id,
-        firm_id         = firm.id,
-        whatsapp_sender = sender_phone,
-        client_name     = client.name,
-        media_url       = media_url,      # ← worker downloads the file
-        account_sid     = account_sid,    # ← Twilio Basic Auth user
+    # ── 8. Queue Celery job ────────────────────────────────
+    # Route to the correct pipeline based on caption keyword detection.
+    common = dict(
+        job_id      = job.id,
+        file_path   = str(dest_path),
+        document_id = document.id,
+        client_id   = client.id,
+        firm_id     = firm.id,
+        month_year  = month_year,
     )
+    if is_bank:
+        process_bank_statement.delay(
+            **common,
+            whatsapp_sender = sender_phone,
+            client_name     = client.name,
+            media_url       = media_url,
+            account_sid     = account_sid,
+        )
+    else:
+        process_document.delay(
+            **common,
+            whatsapp_sender = sender_phone,
+            client_name     = client.name,
+            media_url       = media_url,
+            account_sid     = account_sid,
+        )
 
-    # ── 8. Reply instantly via TwiML ──────────────────────
-    # Show the detected month so the client can catch any misparse immediately.
+    # ── 9. Reply instantly via TwiML ──────────────────────
     try:
         yr, mo = month_year.split("-")
-        month_label = datetime(int(yr), int(mo), 1).strftime("%B %Y")   # e.g. "October 2025"
+        month_label = datetime(int(yr), int(mo), 1).strftime("%B %Y")
     except Exception:
         month_label = month_year
 
-    return _twiml(
-        f"📄 Got it, {client.name}! Your document is being processed for *{month_label}*.\n"
-        "I'll send you the details once it's done — single invoices usually take 1-2 mins, "
-        "larger documents (50+ pages) can take 15-20 mins. Please wait. ⏳\n\n"
-        "_If the month above is wrong, just reply with the correct month (e.g. \"October\") "
-        "and resend the file._"
-    )
+    if is_bank:
+        return _twiml(
+            f"🏦 Got it, {client.name}! Your *bank statement* for *{month_label}* is being processed.\n"
+            "I'll send you the transaction summary once done — usually 2-5 mins. ⏳\n\n"
+            "_If this was an invoice (not a bank statement), resend with caption \"invoice\"._"
+        )
+    else:
+        return _twiml(
+            f"📄 Got it, {client.name}! Your *invoice* for *{month_label}* is being processed.\n"
+            "I'll send you the details once done — single invoices 1-2 mins, "
+            "larger documents (50+ pages) can take 15-20 mins. ⏳\n\n"
+            "_To send a bank statement instead, resend with caption \"bank statement\"._"
+        )
