@@ -142,13 +142,25 @@ def _is_bank_statement(caption: str) -> bool:
 # ── Supported media types from WhatsApp ────────────────────
 # WhatsApp compresses images to JPEG. PDFs may arrive as application/pdf
 # OR as application/octet-stream (Twilio sandbox sometimes does this).
+# Excel/CSV files are common for bank statements sent as documents.
 MEDIA_TYPE_MAP = {
-    "image/jpeg":                "jpg",
-    "image/jpg":                 "jpg",
-    "image/png":                 "png",
-    "application/pdf":           "pdf",
-    "application/octet-stream":  "pdf",   # Twilio sandbox sends PDFs with this type
-    "image/heic":                "heic",
+    # ── Images ──────────────────────────────────────────────
+    "image/jpeg":                                                       "jpg",
+    "image/jpg":                                                        "jpg",
+    "image/png":                                                        "png",
+    "image/heic":                                                       "heic",
+    # ── PDF ─────────────────────────────────────────────────
+    "application/pdf":                                                  "pdf",
+    "application/octet-stream":                                         "pdf",   # Twilio sandbox fallback
+    # ── Excel ───────────────────────────────────────────────
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",  # .xlsx
+    "application/vnd.ms-excel":                                         "xlsx",   # .xls
+    "application/msexcel":                                              "xlsx",
+    "application/x-msexcel":                                            "xlsx",
+    # ── CSV ─────────────────────────────────────────────────
+    "text/csv":                                                         "csv",
+    "application/csv":                                                  "csv",
+    "text/comma-separated-values":                                      "csv",
 }
 
 FILE_TYPE_MAP = {
@@ -156,6 +168,8 @@ FILE_TYPE_MAP = {
     "png":  (DocumentFileType.png,  ".png"),
     "pdf":  (DocumentFileType.pdf,  ".pdf"),
     "heic": (DocumentFileType.heic, ".heic"),
+    "xlsx": (DocumentFileType.xlsx, ".xlsx"),
+    "csv":  (DocumentFileType.csv,  ".csv"),
 }
 
 
@@ -381,6 +395,10 @@ async def whatsapp_webhook(
             media_type_clean = "image/jpeg"
         elif url_lower.endswith(".png"):
             media_type_clean = "image/png"
+        elif url_lower.endswith((".xlsx", ".xls")):
+            media_type_clean = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif url_lower.endswith(".csv"):
+            media_type_clean = "text/csv"
         # If URL has no extension, leave as octet-stream — MEDIA_TYPE_MAP maps it to pdf
 
     ext_key = MEDIA_TYPE_MAP.get(media_type_clean)
@@ -388,7 +406,7 @@ async def whatsapp_webhook(
         logger.warning(f"[whatsapp] Unsupported media type: {media_type_clean!r} from {sender_phone}")
         return _twiml(
             f"⚠️ Hi {client.name}, we received your file but the format isn't supported.\n"
-            "Please send invoices as *photos (JPEG/PNG)* or *PDF* files."
+            "Please send files as *PDF*, *Excel (.xlsx)*, *CSV*, or *photo (JPEG/PNG)*."
         )
 
     file_type, ext = FILE_TYPE_MAP[ext_key]
@@ -427,8 +445,11 @@ async def whatsapp_webhook(
     db.commit()
     db.refresh(job)
 
-    # ── 7. Detect document type from caption ──────────────
-    is_bank = _is_bank_statement(body_text)
+    # ── 7. Detect document type ────────────────────────────
+    # Excel/CSV → always bank statement (invoices are never spreadsheets)
+    # Caption contains bank/statement keywords → bank statement
+    # Everything else → invoice
+    is_bank = (ext_key in ("xlsx", "csv")) or _is_bank_statement(body_text)
     doc_type_label = "bank statement" if is_bank else "invoice"
 
     logger.info(
