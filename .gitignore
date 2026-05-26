@@ -13,10 +13,12 @@ backend/venv/
 venv/
 .venv/
 
-# Environment & secrets
+# Environment & secrets — never commit these
 .env
+.env.*
 *.env
 backend/.env
+backend/.env.*
 backend/google-creds.json
 *.pem
 *.p12

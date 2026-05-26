@@ -96,8 +96,14 @@ def extract_text_from_chunk(
         page_num = chunk.get("page_num", 0)
         img_path = _render_pdf_page_to_image(file_path, page_num)
 
+        # If rendering failed the helper returns the original PDF path.
+        # Claude Vision cannot accept raw PDF bytes — only real image files
+        # (jpg/png) can be sent to the Vision API.  Flag this so we know not
+        # to try Vision if render produced no image.
+        render_succeeded = img_path != file_path and img_path.lower().endswith((".jpg", ".jpeg", ".png"))
+
         # ── Cache lookup (keyed on rendered image bytes) ──────────────────────
-        cache_key = _image_hash(img_path) if os.path.exists(img_path) else None
+        cache_key = _image_hash(img_path) if (render_succeeded and os.path.exists(img_path)) else None
         if cache_key and cache_key in _OCR_CACHE:
             cached_text, cached_conf, cached_layer = _OCR_CACHE[cache_key]
             logger.info(f"[ocr] Cache hit for {os.path.basename(img_path)} — skipping API call")
@@ -107,7 +113,13 @@ def extract_text_from_chunk(
         docai_text, docai_conf = _layer2_google_docai(img_path, [])
         text, confidence = docai_text, docai_conf
 
-        needs_vision = (confidence < DOCAI_CONFIDENCE_THRESHOLD) or (not text.strip())
+        # Only attempt Claude Vision if we have an actual image file.
+        # If render_succeeded is False (disk full, pypdfium2 error, etc.) we
+        # stay with the DocAI result — sending PDF bytes as image/jpeg would
+        # always fail and produce a misleading error.
+        needs_vision = render_succeeded and (
+            (confidence < DOCAI_CONFIDENCE_THRESHOLD) or (not text.strip())
+        )
         if needs_vision:
             reason = f"conf {confidence:.2f} < threshold" if confidence < DOCAI_CONFIDENCE_THRESHOLD else "empty text"
             logger.info(f"[ocr] DocAI {reason}, using Claude Vision")
@@ -122,21 +134,19 @@ def extract_text_from_chunk(
                 err_str = str(vision_err)
                 is_billing = any(kw in err_str for kw in ("credit balance", "billing", "quota", "insufficient_quota"))
                 if is_billing:
-                    # Credit exhausted — if DocAI gave us any text, use it rather than
-                    # failing the page entirely. Re-raise so the worker can abort the job.
                     if docai_text.strip():
+                        # DocAI got some text — use it rather than failing the page
                         logger.warning(
-                            f"[ocr] Claude Vision billing error — using DocAI fallback "
-                            f"(conf {docai_conf:.2f}) for this page"
+                            f"[ocr] Claude Vision billing error — falling back to DocAI result "
+                            f"(conf {docai_conf:.2f}). Top up Anthropic credits for better accuracy."
                         )
                         _cleanup_temp(img_path, file_path)
                         result_layer = "google_docai"
                         if cache_key:
                             _OCR_CACHE[cache_key] = (docai_text, docai_conf, result_layer)
-                        # Still propagate so the worker knows credits are gone
-                        raise
+                        return docai_text, docai_conf, result_layer
                     else:
-                        raise  # No DocAI text either — must abort
+                        raise  # No DocAI text at all — nothing to work with
                 # Non-billing Vision error — fall back to DocAI silently
                 logger.warning(f"[ocr] Claude Vision failed ({vision_err}), using DocAI fallback")
                 _cleanup_temp(img_path, file_path)
@@ -144,6 +154,12 @@ def extract_text_from_chunk(
                 if cache_key:
                     _OCR_CACHE[cache_key] = (docai_text, docai_conf, result_layer)
                 return docai_text, docai_conf, result_layer
+
+        if not render_succeeded and not text.strip():
+            logger.warning(
+                f"[ocr] Page render failed AND DocAI returned empty text for page {page_num}. "
+                "Likely cause: disk full or pypdfium2 error. Free disk space and retry."
+            )
         _cleanup_temp(img_path, file_path)
         result_layer = "google_docai"
         if cache_key:
@@ -158,14 +174,33 @@ def extract_text_from_chunk(
             logger.info(f"[ocr] Cache hit for {os.path.basename(file_path)} — skipping API call")
             return cached_text, cached_conf, cached_layer
 
-        text, confidence = _layer2_google_docai(file_path, pages)
-        if confidence < DOCAI_CONFIDENCE_THRESHOLD:
-            logger.info(f"[ocr] DocAI conf {confidence:.2f} < threshold, using Claude Vision")
-            text, confidence = _layer3_claude_vision(file_path, pages)
-            result_layer = "claude_vision"
-            if cache_key:
-                _OCR_CACHE[cache_key] = (text, confidence, result_layer)
-            return text, confidence, result_layer
+        docai_text, docai_conf = _layer2_google_docai(file_path, pages)
+        text, confidence = docai_text, docai_conf
+
+        if confidence < DOCAI_CONFIDENCE_THRESHOLD or not text.strip():
+            reason = f"conf {confidence:.2f} < threshold" if confidence < DOCAI_CONFIDENCE_THRESHOLD else "empty text"
+            logger.info(f"[ocr] image: DocAI {reason}, trying Claude Vision")
+            try:
+                text, confidence = _layer3_claude_vision(file_path, pages)
+                result_layer = "claude_vision"
+                if cache_key:
+                    _OCR_CACHE[cache_key] = (text, confidence, result_layer)
+                return text, confidence, result_layer
+            except Exception as vision_err:
+                err_str = str(vision_err)
+                is_billing = any(kw in err_str for kw in ("credit balance", "billing", "quota", "insufficient_quota"))
+                if is_billing and docai_text.strip():
+                    logger.warning(
+                        f"[ocr] image: Claude Vision billing error — using DocAI fallback "
+                        f"(conf {docai_conf:.2f}). Top up credits for better accuracy."
+                    )
+                    result_layer = "google_docai"
+                    if cache_key:
+                        _OCR_CACHE[cache_key] = (docai_text, docai_conf, result_layer)
+                    return docai_text, docai_conf, result_layer
+                # No DocAI text or non-billing error — propagate
+                raise
+
         result_layer = "google_docai"
         if cache_key:
             _OCR_CACHE[cache_key] = (text, confidence, result_layer)

@@ -15,8 +15,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from models.db import (
-    Document, ExtractionCorrection, Firm, Invoice, JobStatus,
-    InvoiceStatus, get_db,
+    Client, Document, DocumentSourceChannel, ExtractionCorrection,
+    Firm, Invoice, JobStatus, InvoiceStatus, get_db,
 )
 from routes.auth import get_current_firm
 
@@ -168,6 +168,48 @@ def get_job_result(
     return ResultOut(document=document, invoices=invoices)
 
 
+@router.get("/whatsapp-inbox")
+def get_whatsapp_inbox(
+    firm: Firm = Depends(get_current_firm),
+    db:   Session = Depends(get_db),
+):
+    """
+    Return recent WhatsApp-sourced jobs (last 20) for the CA dashboard inbox.
+    Each entry has enough info to render a card: client name, status, time, job_id.
+    The frontend polls this every 10s to show new incoming WhatsApp invoices.
+    """
+    from sqlalchemy import desc
+
+    jobs = (
+        db.query(JobStatus, Document, Client)
+        .join(Document, Document.id == JobStatus.document_id)
+        .join(Client,   Client.id   == Document.client_id)
+        .filter(
+            JobStatus.firm_id == firm.id,
+            Document.source_channel == DocumentSourceChannel.whatsapp,
+        )
+        .order_by(desc(JobStatus.created_at))
+        .limit(20)
+        .all()
+    )
+
+    result = []
+    for job, doc, client in jobs:
+        invoice_count = db.query(Invoice).filter(Invoice.document_id == doc.id).count()
+        result.append({
+            "job_id":        job.id,
+            "status":        job.status.value,
+            "client_name":   client.name,
+            "client_phone":  client.whatsapp_number or "",
+            "invoice_count": invoice_count,
+            "error":         job.error_message,
+            "created_at":    job.created_at.strftime("%d %b %H:%M") if job.created_at else "",
+            "month_year":    doc.month_year or "",
+        })
+
+    return {"jobs": result}
+
+
 @router.patch("/invoice/{invoice_id}", response_model=InvoiceOut)
 def update_invoice(
     invoice_id: int,
@@ -220,3 +262,32 @@ def update_invoice(
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+# ── Delete invoice ──────────────────────────────────────────
+
+@router.delete("/invoice/{invoice_id}", status_code=204)
+def delete_invoice(
+    invoice_id: int,
+    firm: Firm = Depends(get_current_firm),
+    db: Session = Depends(get_db),
+):
+    """
+    Permanently delete a single extracted invoice.
+    Used when the CA wants to remove a mis-extracted or duplicate entry.
+    The parent Document and JobStatus records are kept intact.
+    """
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    # Verify ownership — invoice must belong to this firm
+    doc = db.query(Document).filter(
+        Document.id == invoice.document_id,
+        Document.firm_id == firm.id,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=403, detail="Not your invoice")
+
+    db.delete(invoice)
+    db.commit()

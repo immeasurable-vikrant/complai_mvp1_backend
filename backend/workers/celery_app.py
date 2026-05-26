@@ -104,6 +104,10 @@ def process_document(
     document_id: int,
     client_id: int,
     firm_id: int,
+    whatsapp_sender: str = "",     # E.164 phone number — set when upload came from WhatsApp
+    client_name: str = "",         # client display name for the reply message
+    media_url: str = "",           # Twilio media URL — if set, worker downloads the file first
+    account_sid: str = "",         # Twilio Account SID for download auth
 ):
     """
     Full invoice extraction pipeline for one document.
@@ -131,6 +135,42 @@ def process_document(
     job = None
 
     try:
+        # ── Step 0: Download media file (WhatsApp uploads only) ──────────────
+        # The webhook no longer downloads the file — it queues us immediately so
+        # the client gets a "Got it" reply within ~1 second.  We do the download
+        # here where a timeout won't break the Twilio webhook response.
+        if media_url and not Path(file_path).exists():
+            logger.info(f"[worker] Downloading media from Twilio for job={job_id}")
+            import httpx as _httpx
+            _token = os.getenv("TWILIO_AUTH_TOKEN", "")
+            try:
+                with _httpx.Client(timeout=120.0) as _hclient:
+                    resp = _hclient.get(
+                        media_url,
+                        auth=(account_sid, _token),
+                        follow_redirects=True,
+                    )
+                    resp.raise_for_status()
+                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+                Path(file_path).write_bytes(resp.content)
+                logger.info(f"[worker] Downloaded {len(resp.content):,} bytes → {file_path}")
+            except Exception as dl_err:
+                logger.error(f"[worker] Media download failed for job={job_id}: {dl_err}")
+                # Mark the job as error so the dashboard shows it
+                err_job = db.query(JobStatus).filter(JobStatus.id == job_id).first()
+                if err_job:
+                    err_job.status        = JobStatusEnum.error
+                    err_job.error_message = f"File download failed: {dl_err}"
+                    db.commit()
+                if whatsapp_sender:
+                    try:
+                        from agents.whatsapp_sender import send_whatsapp as _send_wa
+                        _send_wa(whatsapp_sender,
+                                 "⚠️ We had trouble downloading your file. Please try sending it again.")
+                    except Exception:
+                        pass
+                return
+
         # ── Step 1: mark job as processing ─────────────────
         job = db.query(JobStatus).filter(JobStatus.id == job_id).first()
         if not job:
@@ -288,6 +328,34 @@ def process_document(
             logger.warning(f"[worker] Job {job_id} done with warnings: {chunk_errors}")
         else:
             logger.info(f"[worker] Job {job_id} completed successfully. Cost=${total_cost:.4f}")
+
+        # ── Step 5: WhatsApp completion reply ───────────────
+        # Only fires when the upload came from WhatsApp (web uploads have whatsapp_sender="")
+        if whatsapp_sender:
+            try:
+                from agents.whatsapp_sender import send_whatsapp, format_completion_message
+                from models.db import Invoice
+
+                # Aggregate totals from all invoices extracted for this document
+                invoices = db.query(Invoice).filter(Invoice.document_id == document_id).all()
+                inv_count     = len(invoices)
+                taxable_total = sum(i.taxable_value or 0 for i in invoices)
+                gst_total     = sum(i.total_gst    or 0 for i in invoices)
+                inv_total     = sum(i.invoice_total or 0 for i in invoices)
+
+                msg = format_completion_message(
+                    client_name=client_name or "there",
+                    invoice_count=inv_count,
+                    taxable_total=taxable_total,
+                    gst_total=gst_total,
+                    invoice_total=inv_total,
+                    has_errors=bool(chunk_errors) or inv_count == 0,
+                )
+                send_whatsapp(whatsapp_sender, msg)
+                logger.info(f"[worker] WhatsApp completion reply sent to {whatsapp_sender}")
+            except Exception as wa_err:
+                # Never let a WhatsApp glitch affect job completion status
+                logger.error(f"[worker] WhatsApp reply failed (non-fatal): {wa_err}")
 
     except Exception as exc:
         logger.error(f"[worker] Job {job_id} failed: {exc}", exc_info=True)

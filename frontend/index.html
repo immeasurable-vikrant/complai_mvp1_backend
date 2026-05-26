@@ -1,768 +1,2037 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>ComplAI — Invoice Extraction</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-:root { --indigo:#4f46e5; }
-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
-.conf-green { background:#dcfce7;color:#166534;border-color:#86efac; }
-.conf-amber { background:#fef9c3;color:#854d0e;border-color:#fde047; }
-.conf-red   { background:#fee2e2;color:#991b1b;border-color:#fca5a5; }
-.review-border  { border-left:4px solid #f59e0b; }
-.accepted-border{ border-left:4px solid #22c55e; }
-.manual-border  { border-left:4px solid #ef4444; }
-.drop-zone.drag-over { border-color:#6366f1;background:#eef2ff; }
-.drop-zone.dz-locked { opacity:0.45;cursor:not-allowed;pointer-events:none;border-color:#cbd5e1!important;background:#f8fafc!important; }
-input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
-.fade-in { animation:fadeIn .25s ease-out; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-.card-shadow   { box-shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06); }
-.card-shadow-md{ box-shadow:0 4px 6px -1px rgba(0,0,0,.07),0 2px 4px -1px rgba(0,0,0,.05); }
-/* Invoice-style line items */
-.inv-table { width:100%;border-collapse:collapse;font-size:12.5px; }
-.inv-table th { background:#f8fafc;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#475569;padding:7px 8px;border:1px solid #e2e8f0;text-align:center; }
-.inv-table td { padding:4px 6px;border:1px solid #e2e8f0;vertical-align:middle; }
-.inv-table input { width:100%;border:none;background:transparent;font-size:12px;color:#1e293b;outline:none;padding:2px 0; }
-.inv-table input:focus { background:#eff6ff;border-radius:3px;padding:2px 4px; }
-.conf-dot { width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0; }
-.conf-dot-green { background:#22c55e; }
-.conf-dot-amber { background:#f59e0b; }
-.conf-dot-red   { background:#ef4444; }
-/* Confidence badge — dot + % number inline */
-.conf-badge { display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:1px 6px 1px 4px;border-radius:999px;line-height:1.5;flex-shrink:0; }
-.conf-badge-green { background:#dcfce7;color:#166534; }
-.conf-badge-amber { background:#fef9c3;color:#854d0e; }
-.conf-badge-red   { background:#fee2e2;color:#991b1b; }
-/* Auto-calculated field highlight */
-.calc-glow { border-color:#6366f1!important;background:#eef2ff!important;transition:border-color .3s,background .3s; }
-.calc-tag { font-size:9px;color:#6366f1;font-weight:700;letter-spacing:.02em; }
-/* GST rate picker */
-.gst-rate-btn { padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid #e2e8f0;cursor:pointer;transition:all .15s;background:white;color:#64748b; }
-.gst-rate-btn:hover { border-color:#6366f1;color:#6366f1; }
-.gst-rate-btn.rate-active { background:#6366f1;color:white;border-color:#6366f1; }
-/* Recalc suggestion pill */
-.recalc-pill { display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;cursor:pointer;transition:all .15s; }
-.recalc-pill:hover { background:#dbeafe; }
-.cost-pill { display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;font-size:12px; }
-.cost-pill .label { color:#64748b; }
-.cost-pill .value { font-weight:700;color:#1e293b; }
-.budget-track { height:4px;background:#e2e8f0;border-radius:999px;overflow:hidden; }
-.budget-fill  { height:100%;border-radius:999px;transition:width .4s; }
-.field-row { display:flex;flex-direction:column;gap:4px; }
-.field-label { display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.03em; }
-.field-input { border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:13px;color:#1e293b;outline:none;width:100%;transition:border-color .15s; }
-.field-input:focus { border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1); }
-</style>
-</head>
-<body class="bg-slate-50 min-h-screen">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+		<title>ComplAI — Invoice Extraction</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<script>
+			tailwind.config = {
+				theme: {
+					extend: {
+						colors: {
+							brand: {
+								50:  '#fdf4ef',
+								100: '#f5ddd0',
+								200: '#f0c0a0',
+								300: '#e8a080',
+								400: '#e08860',
+								500: '#d97757',
+								600: '#c4623d',
+								700: '#b05535',
+							}
+						}
+					}
+				}
+			}
+		</script>
+		<style>
+			:root {
+				--indigo: #d97757;
+			}
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+				background: #f0eee6;
+				color: #141413;
+			}
+			.conf-green {
+				background: #dcfce7;
+				color: #166534;
+				border-color: #86efac;
+			}
+			.conf-amber {
+				background: #fef9c3;
+				color: #854d0e;
+				border-color: #fde047;
+			}
+			.conf-red {
+				background: #fee2e2;
+				color: #991b1b;
+				border-color: #fca5a5;
+			}
+			.review-border {
+				border-left: 4px solid #f59e0b;
+			}
+			.accepted-border {
+				border-left: 4px solid #22c55e;
+			}
+			.manual-border {
+				border-left: 4px solid #ef4444;
+			}
+			.drop-zone.drag-over {
+				border-color: #d97757;
+				background: #fdf4ef;
+			}
+			.drop-zone.dz-locked {
+				opacity: 0.45;
+				cursor: not-allowed;
+				pointer-events: none;
+				border-color: #cbd5e1 !important;
+				background: #f8f7f2 !important;
+			}
+			input[type='number']::-webkit-inner-spin-button {
+				-webkit-appearance: none;
+			}
+			.fade-in {
+				animation: fadeIn 0.25s ease-out;
+			}
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(6px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+			.card-shadow {
+				box-shadow:
+					0 1px 3px rgba(0, 0, 0, 0.08),
+					0 1px 2px rgba(0, 0, 0, 0.06);
+			}
+			.card-shadow-md {
+				box-shadow:
+					0 4px 6px -1px rgba(0, 0, 0, 0.07),
+					0 2px 4px -1px rgba(0, 0, 0, 0.05);
+			}
+			/* Invoice-style line items */
+			.inv-table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 12.5px;
+			}
+			.inv-table th {
+				background: #f8f7f2;
+				font-size: 11px;
+				font-weight: 700;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+				color: #3d3d3b;
+				padding: 7px 8px;
+				border: 1px solid #e2e8f0;
+				text-align: center;
+			}
+			.inv-table td {
+				padding: 4px 6px;
+				border: 1px solid #e2e8f0;
+				vertical-align: middle;
+			}
+			.inv-table input {
+				width: 100%;
+				border: none;
+				background: transparent;
+				font-size: 12px;
+				color: #141413;
+				outline: none;
+				padding: 2px 0;
+			}
+			.inv-table input:focus {
+				background: #eff6ff;
+				border-radius: 3px;
+				padding: 2px 4px;
+			}
+			.conf-dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				display: inline-block;
+				flex-shrink: 0;
+			}
+			.conf-dot-green {
+				background: #22c55e;
+			}
+			.conf-dot-amber {
+				background: #f59e0b;
+			}
+			.conf-dot-red {
+				background: #ef4444;
+			}
+			/* Confidence badge — dot + % number inline */
+			.conf-badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 3px;
+				font-size: 10px;
+				font-weight: 700;
+				padding: 1px 6px 1px 4px;
+				border-radius: 999px;
+				line-height: 1.5;
+				flex-shrink: 0;
+			}
+			.conf-badge-green {
+				background: #dcfce7;
+				color: #166534;
+			}
+			.conf-badge-amber {
+				background: #fef9c3;
+				color: #854d0e;
+			}
+			.conf-badge-red {
+				background: #fee2e2;
+				color: #991b1b;
+			}
+			/* Auto-calculated field highlight */
+			.calc-glow {
+				border-color: #d97757 !important;
+				background: #fdf4ef !important;
+				transition:
+					border-color 0.3s,
+					background 0.3s;
+			}
+			.calc-tag {
+				font-size: 9px;
+				color: #d97757;
+				font-weight: 700;
+				letter-spacing: 0.02em;
+			}
+			/* GST rate picker */
+			.gst-rate-btn {
+				padding: 1px 7px;
+				border-radius: 999px;
+				font-size: 10px;
+				font-weight: 700;
+				border: 1px solid #e2e8f0;
+				cursor: pointer;
+				transition: all 0.15s;
+				background: white;
+				color: #64748b;
+			}
+			.gst-rate-btn:hover {
+				border-color: #d97757;
+				color: #d97757;
+			}
+			.gst-rate-btn.rate-active {
+				background: #d97757;
+				color: white;
+				border-color: #d97757;
+			}
+			/* Recalc suggestion pill */
+			.recalc-pill {
+				display: inline-flex;
+				align-items: center;
+				gap: 3px;
+				font-size: 10px;
+				font-weight: 600;
+				padding: 1px 7px;
+				border-radius: 999px;
+				background: #eff6ff;
+				color: #3b82f6;
+				border: 1px solid #bfdbfe;
+				cursor: pointer;
+				transition: all 0.15s;
+			}
+			.recalc-pill:hover {
+				background: #dbeafe;
+			}
+			.cost-pill {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				padding: 4px 10px;
+				border-radius: 999px;
+				background: #f1f5f9;
+				border: 1px solid #e2e8f0;
+				font-size: 12px;
+			}
+			.cost-pill .label {
+				color: #64748b;
+			}
+			.cost-pill .value {
+				font-weight: 700;
+				color: #141413;
+			}
+			.budget-track {
+				height: 4px;
+				background: #e2e8f0;
+				border-radius: 999px;
+				overflow: hidden;
+			}
+			.budget-fill {
+				height: 100%;
+				border-radius: 999px;
+				transition: width 0.4s;
+			}
+			.field-row {
+				display: flex;
+				flex-direction: column;
+				gap: 4px;
+			}
+			.field-label {
+				display: flex;
+				align-items: center;
+				gap: 5px;
+				font-size: 11px;
+				font-weight: 600;
+				color: #64748b;
+				text-transform: uppercase;
+				letter-spacing: 0.03em;
+			}
+			.field-input {
+				border: 1px solid #e2e8f0;
+				border-radius: 8px;
+				padding: 7px 10px;
+				font-size: 13px;
+				color: #141413;
+				outline: none;
+				width: 100%;
+				transition: border-color 0.15s;
+			}
+			.field-input:focus {
+				border-color: #d97757;
+				box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+			}
+			/* Prevent text selection while tapping/clicking invoice card headers */
+			.inv-card-header {
+				user-select: none;
+				-webkit-user-select: none;
+			}
+			/* WhatsApp inbox — client card chevron rotation */
+			#wa-inbox-list [id^="wa-client-"] svg.rotate-180 {
+				transform: rotate(180deg);
+			}
+		</style>
+	</head>
+	<body class="min-h-screen">
+		<!-- NAV -->
+		<nav
+			class="bg-white border-b border-slate-200 fixed top-0 left-0 right-0 z-50 card-shadow"
+		>
+			<div
+				class="max-w-7xl mx-auto px-4 flex items-center justify-between h-14"
+			>
+				<div class="flex items-center gap-2.5">
+					<div
+						class="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center"
+					>
+						<svg
+							class="w-4 h-4 text-white"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2.5"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+							/>
+						</svg>
+					</div>
+					<div>
+						<span class="text-base font-bold text-brand-500">ComplAI</span
+						><span class="text-xs text-slate-400 block leading-none"
+							>Invoice Extraction</span
+						>
+					</div>
+				</div>
+				<div id="cost-bar" class="hidden items-center gap-3">
+					<!-- hidden elements kept so JS doesn't break -->
+					<span id="cost-today" class="hidden"></span>
+					<span id="cost-month" class="hidden"></span>
+					<span id="cost-claude" class="hidden"></span>
+					<span id="cost-docai" class="hidden"></span>
 
-<!-- NAV -->
-<nav class="bg-white border-b border-slate-200 fixed top-0 left-0 right-0 z-50 card-shadow">
-  <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
-    <div class="flex items-center gap-2.5">
-      <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      </div>
-      <div><span class="text-base font-bold text-indigo-600">ComplAI</span><span class="text-xs text-slate-400 block leading-none">Invoice Extraction</span></div>
-    </div>
-    <div id="cost-bar" class="hidden items-center gap-2">
-      <div class="cost-pill"><span class="label">Today</span><span id="cost-today" class="value">₹0.00</span></div>
-      <div class="cost-pill"><span class="label">Month</span><span id="cost-month" class="value">₹0.00</span></div>
-      <div class="cost-pill" title="Anthropic (Claude) this month">
-        <span class="text-violet-500 text-xs font-bold">AI</span>
-        <span id="cost-claude" class="value">₹0.00</span>
-      </div>
-      <div class="cost-pill" title="Google DocAI this month">
-        <span class="text-blue-500 text-xs font-bold">OCR</span>
-        <span id="cost-docai" class="value">₹0.00</span>
-      </div>
-      <div class="cost-pill" title="Docs processed this month">
-        <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        <span id="docs-month" class="value">0</span><span class="label">docs</span>
-      </div>
-      <div class="hidden sm:flex flex-col gap-0.5 w-24">
-        <div class="flex justify-between text-xs text-slate-400"><span>Budget</span><span id="budget-pct-label">0%</span></div>
-        <div class="budget-track"><div id="budget-bar" class="budget-fill bg-indigo-500" style="width:0%"></div></div>
-      </div>
-    </div>
-    <button id="logout-btn" onclick="logout()" class="hidden text-sm text-slate-400 hover:text-red-500 transition flex items-center gap-1">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-      Logout
-    </button>
-  </div>
-</nav>
+					<!-- Docs count -->
+					<div class="cost-pill">
+						<svg class="w-3 h-3 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+						</svg>
+						<span id="docs-month" class="value">0</span>
+						<span class="label">docs</span>
+					</div>
 
-<!-- LOGIN -->
-<div id="login-screen" class="hidden flex items-center justify-center min-h-screen pt-14">
-  <div class="bg-white rounded-2xl card-shadow-md p-8 w-full max-w-sm border border-slate-100">
-    <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><span class="text-xl font-bold text-indigo-600">ComplAI</span></div>
-    <h1 class="text-xl font-bold text-slate-800 mb-1">Welcome back</h1>
-    <p class="text-sm text-slate-500 mb-5">Sign in to your CA dashboard</p>
-    <div id="login-error" class="hidden bg-red-50 text-red-700 text-sm rounded-lg p-3 mb-4 border border-red-100"></div>
-    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Email</label>
-    <input id="login-email" type="email" class="field-input mb-3.5" placeholder="ca@example.com"/>
-    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Password</label>
-    <input id="login-pass" type="password" class="field-input mb-5" onkeydown="if(event.key==='Enter')doLogin()"/>
-    <button onclick="doLogin()" class="w-full bg-indigo-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-indigo-700 active:scale-[.98] transition">Sign in</button>
-  </div>
-</div>
+					<!-- AI budget — label + % + bar all in one pill -->
+					<div class="cost-pill gap-2" style="min-width:180px">
+						<span class="label whitespace-nowrap">AI Budget</span>
+						<div class="flex-1 budget-track" style="min-width:60px">
+							<div id="budget-bar" class="budget-fill bg-brand-500" style="width:0%"></div>
+						</div>
+						<span id="budget-pct-label" class="value whitespace-nowrap">0%</span>
+					</div>
+				</div>
+				<button
+					id="logout-btn"
+					onclick="logout()"
+					class="hidden text-sm text-slate-400 hover:text-red-500 transition flex items-center gap-1"
+				>
+					<svg
+						class="w-4 h-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+						/>
+					</svg>
+					Logout
+				</button>
+			</div>
+		</nav>
 
-<!-- MAIN APP -->
-<div id="main-app" class="hidden pt-14">
-  <div class="max-w-7xl mx-auto px-4 py-5">
+		<!-- ACCURACY BANNER -->
+		<div id="accuracy-banner" class="hidden fixed top-14 left-0 right-0 z-40 border-b border-[#e8d9cc]" style="background:#fdf4ef">
+			<div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-4 flex-wrap">
+				<div class="flex items-center gap-1.5 text-xs text-[#141413] flex-wrap gap-y-1">
+					<svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>
+					<span class="font-semibold text-brand-500 mr-1">Accuracy guide —</span>
+					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
+						<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+						Digital PDF &nbsp;<strong>90–98%</strong>
+					</span>
+					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
+						<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+						Clear scanned PDF &nbsp;<strong>85–92%</strong>
+					</span>
+					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
+						<span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+						WhatsApp photo &nbsp;<strong>70–80%</strong>
+					</span>
+					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
+						<span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+						Blurry / low-light image &nbsp;<strong>50–70%</strong>
+					</span>
+					<span class="text-[#3d3d3b] ml-1">— always verify flagged fields before saving.</span>
+				</div>
+				<button onclick="document.getElementById('accuracy-banner').remove()" class="text-[#3d3d3b] hover:text-[#141413] flex-shrink-0 p-0.5 rounded hover:bg-[#e8d9cc] transition" title="Dismiss">
+					<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+				</button>
+			</div>
+		</div>
 
-    <!-- Tabs -->
-    <div class="flex gap-1 mb-5 bg-white rounded-xl p-1 card-shadow border border-slate-100 w-fit">
-      <button id="tab-invoices" onclick="switchTab('invoices')" class="px-4 py-2 rounded-lg text-sm font-semibold transition bg-indigo-600 text-white flex items-center gap-1.5">
-        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        Invoices
-      </button>
-      <button id="tab-bank" onclick="switchTab('bank')" class="px-4 py-2 rounded-lg text-sm font-semibold transition text-slate-500 hover:bg-slate-100 flex items-center gap-1.5">
-        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
-        Bank Statement
-      </button>
-    </div>
+		<!-- LOGIN -->
+		<div
+			id="login-screen"
+			class="hidden flex items-center justify-center min-h-screen pt-14"
+		>
+			<div
+				class="bg-white rounded-2xl card-shadow-md p-8 w-full max-w-sm border border-slate-100"
+			>
+				<div class="flex items-center gap-2 mb-6">
+					<div
+						class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center"
+					>
+						<svg
+							class="w-5 h-5 text-white"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2.5"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+							/>
+						</svg>
+					</div>
+					<span class="text-xl font-bold text-brand-500">ComplAI</span>
+				</div>
+				<h1 class="text-xl font-bold text-[#141413] mb-1">Welcome back</h1>
+				<p class="text-sm text-slate-500 mb-5">Sign in to your CA dashboard</p>
+				<div
+					id="login-error"
+					class="hidden bg-red-50 text-red-700 text-sm rounded-lg p-3 mb-4 border border-red-100"
+				></div>
+				<label
+					class="block text-xs font-semibold text-[#3d3d3b] mb-1.5 uppercase tracking-wide"
+					>Email</label
+				>
+				<input
+					id="login-email"
+					type="email"
+					class="field-input mb-3.5"
+					placeholder="ca@example.com"
+				/>
+				<label
+					class="block text-xs font-semibold text-[#3d3d3b] mb-1.5 uppercase tracking-wide"
+					>Password</label
+				>
+				<input
+					id="login-pass"
+					type="password"
+					class="field-input mb-5"
+					onkeydown="if (event.key === 'Enter') doLogin();"
+				/>
+				<button
+					onclick="doLogin()"
+					class="w-full bg-brand-500 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-brand-600 active:scale-[.98] transition"
+				>
+					Sign in
+				</button>
+			</div>
+		</div>
 
-    <!-- INVOICES TAB -->
-    <div id="pane-invoices">
-      <div class="grid md:grid-cols-2 gap-4 mb-5">
-        <div class="bg-white rounded-xl border border-slate-200 p-4 card-shadow">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Select Client &amp; Month</div>
-          <select id="client-select" onchange="onClientChange()" class="field-input mb-3">
-            <option value="">— Select client —</option>
-          </select>
-          <input id="month-select" type="month" class="field-input"/>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 p-4 card-shadow">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Upload Document</div>
-          <div id="drop-zone" class="drop-zone border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'invoices')" onclick="document.getElementById('file-input').click()">
-            <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2">
-              <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-            </div>
-            <p class="text-sm font-medium text-slate-600">Drop file or click to browse</p>
-            <p class="text-xs text-slate-400 mt-1">PDF · JPG · PNG · HEIC · XLSX · CSV · Max 40 MB</p>
-          </div>
-          <input id="file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.csv" class="hidden" onchange="uploadFile(this.files[0],'invoices')"/>
-        </div>
-      </div>
+		<!-- MAIN APP -->
+		<div id="main-app" class="hidden pt-14">
+			<div class="max-w-7xl mx-auto px-4 py-5">
+				<!-- 2-tab nav: WhatsApp (auto) | Upload (manual) -->
+				<div class="flex gap-1 mb-5 bg-white rounded-xl p-1 card-shadow border border-slate-100 w-fit">
+					<button id="tab-whatsapp" onclick="switchTab('whatsapp')"
+						class="px-4 py-2 rounded-lg text-sm font-semibold transition bg-brand-500 text-white flex items-center gap-1.5">
+						<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+						WhatsApp Inbox
+						<span id="wa-badge" class="hidden bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+					</button>
+					<button id="tab-upload" onclick="switchTab('upload')"
+						class="px-4 py-2 rounded-lg text-sm font-semibold transition text-slate-500 hover:bg-slate-100 flex items-center gap-1.5">
+						<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+						</svg>
+						Upload
+					</button>
+				</div>
 
-      <!-- Progress -->
-      <div id="progress-container" class="hidden bg-white rounded-xl border border-slate-200 p-4 mb-5 card-shadow">
-        <div class="flex items-center gap-3">
-          <svg class="w-5 h-5 text-indigo-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-          <div class="flex-1">
-            <div class="flex justify-between mb-1.5"><span class="text-sm font-medium text-slate-700">Processing document…</span><span id="progress-text" class="text-xs text-slate-400"></span></div>
-            <div class="w-full bg-slate-100 rounded-full h-1.5"><div id="progress-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width:5%"></div></div>
-          </div>
-        </div>
-      </div>
+				<!-- UPLOAD TAB (manual: Invoice + Bank Statement) -->
+				<div id="pane-upload" class="hidden">
 
-      <div id="partial-banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center gap-2 text-sm text-amber-800">
-        <svg class="animate-spin w-4 h-4 flex-shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-        <span id="partial-banner-text">Still processing — results updating live…</span>
-      </div>
-      <div id="invoice-results" class="space-y-4"></div>
+				<!-- Type toggle: Invoice | Bank Statement -->
+				<div class="flex gap-1 mb-5 bg-slate-100 rounded-lg p-1 w-fit">
+					<button id="upload-type-invoices" onclick="switchUploadType('invoices')"
+						class="px-4 py-1.5 rounded-md text-sm font-semibold transition bg-white text-[#141413] shadow-sm flex items-center gap-1.5">
+						<svg class="w-3.5 h-3.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+						</svg>
+						Invoice
+					</button>
+					<button id="upload-type-bank" onclick="switchUploadType('bank')"
+						class="px-4 py-1.5 rounded-md text-sm font-semibold transition text-slate-500 flex items-center gap-1.5">
+						<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+						</svg>
+						Bank Statement
+					</button>
+				</div>
 
-      <div id="export-buttons" class="hidden flex flex-wrap gap-3 mt-5 items-center">
-        <button onclick="exportFile('busy')" class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-700 transition flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-          Busy Excel
-        </button>
-        <!-- Tally group: version toggle + download -->
-        <div class="flex items-center rounded-xl overflow-hidden border border-blue-200 shadow-sm">
-          <div class="flex bg-blue-50 border-r border-blue-200">
-            <button id="tally-ver-prime" onclick="setTallyVersion('prime')"
-              class="px-3 py-2 text-xs font-bold text-blue-700 bg-blue-100 border-r border-blue-200 transition hover:bg-blue-200">
-              TallyPrime
-            </button>
-            <button id="tally-ver-erp9" onclick="setTallyVersion('erp9')"
-              class="px-3 py-2 text-xs font-semibold text-blue-500 transition hover:bg-blue-100">
-              ERP 9
-            </button>
-          </div>
-          <button onclick="exportFile('tally')" class="bg-blue-600 text-white px-4 py-2.5 text-sm font-semibold hover:bg-blue-700 transition flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-            Tally XML
-          </button>
-        </div>
-        <input type="hidden" id="tally-version-val" value="prime"/>
-      </div>
-    </div>
+				<!-- INVOICES SECTION -->
+				<div id="pane-invoices">
+					<div class="grid md:grid-cols-2 gap-4 mb-5">
+						<div
+							class="bg-white rounded-xl border border-slate-200 p-4 card-shadow"
+						>
+							<div
+								class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3"
+							>
+								Select Client &amp; Month
+							</div>
+							<select
+								id="client-select"
+								onchange="onClientChange()"
+								class="field-input mb-3"
+							>
+								<option value="">— Select client —</option>
+							</select>
+							<input id="month-select" type="month" class="field-input" />
+						</div>
+						<div
+							class="bg-white rounded-xl border border-slate-200 p-4 card-shadow"
+						>
+							<div
+								class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3"
+							>
+								Upload Document
+							</div>
+							<div
+								id="drop-zone"
+								class="drop-zone border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50 transition"
+								ondragover="onDragOver(event)"
+								ondragleave="onDragLeave(event)"
+								ondrop="onDrop(event, 'invoices')"
+								onclick="document.getElementById('file-input').click()"
+							>
+								<div
+									class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2"
+								>
+									<svg
+										class="w-5 h-5 text-slate-400"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+										/>
+									</svg>
+								</div>
+								<p class="text-sm font-medium text-[#3d3d3b]">
+									Drop file or click to browse
+								</p>
+								<p class="text-xs text-slate-400 mt-1">
+									PDF · JPG · PNG · HEIC · XLSX · CSV · Max 40 MB
+								</p>
+							</div>
+							<input
+								id="file-input"
+								type="file"
+								accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.csv"
+								class="hidden"
+								onchange="uploadFile(this.files[0], 'invoices')"
+							/>
+						</div>
+					</div>
 
-    <!-- BANK TAB -->
-    <div id="pane-bank" class="hidden">
-      <div class="grid md:grid-cols-2 gap-4 mb-5">
-        <div class="bg-white rounded-xl border border-slate-200 p-4 card-shadow">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Select Client &amp; Month</div>
-          <select id="bank-client-select" class="field-input mb-3"><option value="">— Select client —</option></select>
-          <input id="bank-month-select" type="month" class="field-input"/>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 p-4 card-shadow">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Upload Bank Statement</div>
-          <div id="bank-drop-zone" class="drop-zone border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'bank')" onclick="document.getElementById('bank-file-input').click()">
-            <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2"><svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg></div>
-            <p class="text-sm font-medium text-slate-600">PDF · XLS · XLSX · CSV</p>
-          </div>
-          <input id="bank-file-input" type="file" accept=".pdf,.xls,.xlsx,.csv" class="hidden" onchange="uploadFile(this.files[0],'bank')"/>
-        </div>
-      </div>
-      <div id="bank-progress-container" class="hidden bg-white rounded-xl border border-slate-200 p-4 mb-5 card-shadow">
-        <div class="flex items-center gap-3">
-          <svg class="w-5 h-5 text-indigo-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-          <div class="flex-1">
-            <div class="flex justify-between mb-1.5"><span class="text-sm font-medium text-slate-700">Processing bank statement…</span><span id="bank-progress-text" class="text-xs text-slate-400"></span></div>
-            <div class="w-full bg-slate-100 rounded-full h-1.5"><div id="bank-progress-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width:5%"></div></div>
-          </div>
-        </div>
-      </div>
-      <!-- ── Bank Statement Document (shown after extraction) ── -->
-      <div id="bank-statement-doc" class="hidden">
+					<!-- Progress -->
+					<div
+						id="progress-container"
+						class="hidden bg-white rounded-xl border border-slate-200 p-4 mb-5 card-shadow"
+					>
+						<div class="flex items-center gap-3">
+							<svg
+								class="w-5 h-5 text-brand-500 animate-spin flex-shrink-0"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								/>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+								/>
+							</svg>
+							<div class="flex-1">
+								<div class="flex justify-between mb-1.5">
+									<span class="text-sm font-medium text-[#2a2a28]"
+										>Processing document…</span
+									><span
+										id="progress-text"
+										class="text-xs text-slate-400"
+									></span>
+								</div>
+								<div class="w-full bg-slate-100 rounded-full h-1.5">
+									<div
+										id="progress-bar"
+										class="bg-brand-500 h-1.5 rounded-full transition-all duration-500"
+										style="width: 5%"
+									></div>
+								</div>
+							</div>
+						</div>
+					</div>
 
-        <!-- Statement Header — mimics the printed bank statement header -->
-        <div class="bg-white border border-slate-200 rounded-xl card-shadow mb-4 overflow-hidden">
-          <!-- Bank name bar -->
-          <div class="bg-slate-800 text-white px-6 py-3 flex items-center justify-between">
-            <span id="stmt-bank-name" class="font-bold text-base tracking-wide">—</span>
-            <div id="bank-balance-badge" class="hidden text-xs font-semibold px-2.5 py-1 rounded-full"></div>
-          </div>
-          <!-- Account details grid -->
-          <div class="px-6 py-4 grid grid-cols-2 md:grid-cols-3 gap-x-10 gap-y-3 border-b border-slate-100">
-            <div>
-              <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Account Holder</div>
-              <div id="stmt-holder" class="text-sm font-semibold text-slate-800">—</div>
-            </div>
-            <div>
-              <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">A/C No.</div>
-              <div id="stmt-accno" class="text-sm font-semibold text-slate-800 font-mono tracking-wider">—</div>
-            </div>
-            <div>
-              <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">IFSC</div>
-              <div id="stmt-ifsc" class="text-sm font-semibold text-slate-800 font-mono">—</div>
-            </div>
-            <div>
-              <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Statement Period</div>
-              <div id="stmt-period" class="text-sm font-semibold text-slate-800">—</div>
-            </div>
-            <div>
-              <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Opening Balance</div>
-              <div id="stmt-opening" class="text-sm font-semibold text-slate-800">—</div>
-            </div>
-            <div>
-              <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Closing Balance</div>
-              <div id="stmt-closing" class="text-sm font-semibold text-slate-800">—</div>
-            </div>
-          </div>
-          <!-- Summary totals bar -->
-          <div class="px-6 py-3 flex items-center gap-8 bg-slate-50 text-sm">
-            <div class="flex items-center gap-2">
-              <span class="text-slate-500 text-xs">Total Withdrawals</span>
-              <span id="bank-debits" class="font-bold text-red-600">—</span>
-            </div>
-            <div class="w-px h-4 bg-slate-200"></div>
-            <div class="flex items-center gap-2">
-              <span class="text-slate-500 text-xs">Total Deposits</span>
-              <span id="bank-credits" class="font-bold text-emerald-600">—</span>
-            </div>
-            <div class="w-px h-4 bg-slate-200"></div>
-            <div class="flex items-center gap-2">
-              <span class="text-slate-500 text-xs">Transactions</span>
-              <span id="bank-count" class="font-bold text-slate-700">—</span>
-            </div>
-            <div class="ml-auto flex gap-2">
-              <button id="bank-export-btn" onclick="exportBank()" class="hidden bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">&#8595; Download Excel</button>
-            </div>
-          </div>
-        </div>
+					<div
+						id="partial-banner"
+						class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center gap-2 text-sm text-amber-800"
+					>
+						<svg
+							class="animate-spin w-4 h-4 flex-shrink-0 text-amber-600"
+							fill="none"
+							viewBox="0 0 24 24"
+						>
+							<circle
+								class="opacity-25"
+								cx="12"
+								cy="12"
+								r="10"
+								stroke="currentColor"
+								stroke-width="4"
+							/>
+							<path
+								class="opacity-75"
+								fill="currentColor"
+								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+							/>
+						</svg>
+						<span id="partial-banner-text"
+							>Still processing — results updating live…</span
+						>
+					</div>
+					<div id="invoice-results" class="space-y-4"></div>
 
-        <!-- Statement of Account heading (like the original) -->
-        <div class="text-center text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1" id="stmt-heading">Statement of Account</div>
+					<div
+						id="export-buttons"
+						class="hidden flex flex-wrap gap-3 mt-5 items-center"
+					>
+						<button
+							onclick="exportFile('busy')"
+							class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-700 transition flex items-center gap-2"
+						>
+							<svg
+								class="w-4 h-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+								/>
+							</svg>
+							Busy Excel
+						</button>
+						<!-- Tally group: version toggle + download -->
+						<div
+							class="flex items-center rounded-xl overflow-hidden border border-blue-200 shadow-sm"
+						>
+							<div class="flex bg-blue-50 border-r border-blue-200">
+								<button
+									id="tally-ver-prime"
+									onclick="setTallyVersion('prime')"
+									class="px-3 py-2 text-xs font-bold text-blue-700 bg-blue-100 border-r border-blue-200 transition hover:bg-blue-200"
+								>
+									TallyPrime
+								</button>
+								<button
+									id="tally-ver-erp9"
+									onclick="setTallyVersion('erp9')"
+									class="px-3 py-2 text-xs font-semibold text-blue-500 transition hover:bg-blue-100"
+								>
+									ERP 9
+								</button>
+							</div>
+							<button
+								onclick="exportFile('tally')"
+								class="bg-blue-600 text-white px-4 py-2.5 text-sm font-semibold hover:bg-blue-700 transition flex items-center gap-2"
+							>
+								<svg
+									class="w-4 h-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+									/>
+								</svg>
+								Tally XML
+							</button>
+						</div>
+						<input type="hidden" id="tally-version-val" value="prime" />
+					</div>
+				</div>
 
-        <!-- Transaction Table -->
-        <div class="bg-white border border-slate-200 rounded-xl card-shadow overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full border-collapse text-xs">
-              <thead>
-                <tr class="border-b-2 border-slate-300">
-                  <th class="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap bg-slate-50">DATE</th>
-                  <th class="px-4 py-3 text-left font-semibold text-slate-600 bg-slate-50">PARTICULARS</th>
-                  <th class="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap bg-slate-50">CHQ.NO.</th>
-                  <th class="px-4 py-3 text-right font-semibold text-slate-600 whitespace-nowrap bg-slate-50">WITHDRAWALS</th>
-                  <th class="px-4 py-3 text-right font-semibold text-slate-600 whitespace-nowrap bg-slate-50">DEPOSITS</th>
-                  <th class="px-4 py-3 text-right font-semibold text-slate-600 whitespace-nowrap bg-slate-50">BALANCE</th>
-                  <th class="px-4 py-3 text-left font-semibold text-slate-400 whitespace-nowrap bg-slate-50 border-l border-slate-200" title="Type the party/vendor name for each transaction. This maps to the Tally ledger name used during export.">PARTY NAME <span class="font-normal normal-case text-slate-300">for Tally</span></th>
-                </tr>
-              </thead>
-              <tbody id="bank-table-body" class="divide-y divide-slate-100"></tbody>
-              <!-- Totals footer row -->
-              <tfoot>
-                <tr class="border-t-2 border-slate-300 bg-slate-50 font-semibold text-xs">
-                  <td class="px-4 py-3 text-slate-500 whitespace-nowrap" colspan="3">Total</td>
-                  <td id="foot-withdrawals" class="px-4 py-3 text-right text-red-600 font-bold whitespace-nowrap"></td>
-                  <td id="foot-deposits"    class="px-4 py-3 text-right text-emerald-600 font-bold whitespace-nowrap"></td>
-                  <td id="foot-balance"     class="px-4 py-3 text-right text-slate-700 font-bold whitespace-nowrap"></td>
-                  <td class="px-4 py-3 border-l border-slate-200"></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
+				<!-- BANK STATEMENT SECTION -->
+				<div id="pane-bank" class="hidden">
+					<div class="grid md:grid-cols-2 gap-4 mb-5">
+						<div
+							class="bg-white rounded-xl border border-slate-200 p-4 card-shadow"
+						>
+							<div
+								class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3"
+							>
+								Select Client &amp; Month
+							</div>
+							<select id="bank-client-select" class="field-input mb-3">
+								<option value="">— Select client —</option>
+							</select>
+							<input id="bank-month-select" type="month" class="field-input" />
+						</div>
+						<div
+							class="bg-white rounded-xl border border-slate-200 p-4 card-shadow"
+						>
+							<div
+								class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3"
+							>
+								Upload Bank Statement
+							</div>
+							<div
+								id="bank-drop-zone"
+								class="drop-zone border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50 transition"
+								ondragover="onDragOver(event)"
+								ondragleave="onDragLeave(event)"
+								ondrop="onDrop(event, 'bank')"
+								onclick="document.getElementById('bank-file-input').click()"
+							>
+								<div
+									class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2"
+								>
+									<svg
+										class="w-5 h-5 text-slate-400"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+										/>
+									</svg>
+								</div>
+								<p class="text-sm font-medium text-[#3d3d3b]">
+									PDF · XLS · XLSX · CSV
+								</p>
+							</div>
+							<input
+								id="bank-file-input"
+								type="file"
+								accept=".pdf,.xls,.xlsx,.csv"
+								class="hidden"
+								onchange="uploadFile(this.files[0], 'bank')"
+							/>
+						</div>
+					</div>
+					<div
+						id="bank-progress-container"
+						class="hidden bg-white rounded-xl border border-slate-200 p-4 mb-5 card-shadow"
+					>
+						<div class="flex items-center gap-3">
+							<svg
+								class="w-5 h-5 text-brand-500 animate-spin flex-shrink-0"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								/>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+								/>
+							</svg>
+							<div class="flex-1">
+								<div class="flex justify-between mb-1.5">
+									<span class="text-sm font-medium text-[#2a2a28]"
+										>Processing bank statement…</span
+									><span
+										id="bank-progress-text"
+										class="text-xs text-slate-400"
+									></span>
+								</div>
+								<div class="w-full bg-slate-100 rounded-full h-1.5">
+									<div
+										id="bank-progress-bar"
+										class="bg-brand-500 h-1.5 rounded-full transition-all"
+										style="width: 5%"
+									></div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- ── Bank Statement Document (shown after extraction) ── -->
+					<div id="bank-statement-doc" class="hidden">
+						<!-- Statement Header — mimics the printed bank statement header -->
+						<div
+							class="bg-white border border-slate-200 rounded-xl card-shadow mb-4 overflow-hidden"
+						>
+							<!-- Bank name bar -->
+							<div
+								class="bg-slate-800 text-white px-6 py-3 flex items-center justify-between"
+							>
+								<span
+									id="stmt-bank-name"
+									class="font-bold text-base tracking-wide"
+									>—</span
+								>
+								<div
+									id="bank-balance-badge"
+									class="hidden text-xs font-semibold px-2.5 py-1 rounded-full"
+								></div>
+							</div>
+							<!-- Account details grid -->
+							<div
+								class="px-6 py-4 grid grid-cols-2 md:grid-cols-3 gap-x-10 gap-y-3 border-b border-slate-100"
+							>
+								<div>
+									<div
+										class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5"
+									>
+										Account Holder
+									</div>
+									<div
+										id="stmt-holder"
+										class="text-sm font-semibold text-[#141413]"
+									>
+										—
+									</div>
+								</div>
+								<div>
+									<div
+										class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5"
+									>
+										A/C No.
+									</div>
+									<div
+										id="stmt-accno"
+										class="text-sm font-semibold text-[#141413] font-mono tracking-wider"
+									>
+										—
+									</div>
+								</div>
+								<div>
+									<div
+										class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5"
+									>
+										IFSC
+									</div>
+									<div
+										id="stmt-ifsc"
+										class="text-sm font-semibold text-[#141413] font-mono"
+									>
+										—
+									</div>
+								</div>
+								<div>
+									<div
+										class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5"
+									>
+										Statement Period
+									</div>
+									<div
+										id="stmt-period"
+										class="text-sm font-semibold text-[#141413]"
+									>
+										—
+									</div>
+								</div>
+								<div>
+									<div
+										class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5"
+									>
+										Opening Balance
+									</div>
+									<div
+										id="stmt-opening"
+										class="text-sm font-semibold text-[#141413]"
+									>
+										—
+									</div>
+								</div>
+								<div>
+									<div
+										class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5"
+									>
+										Closing Balance
+									</div>
+									<div
+										id="stmt-closing"
+										class="text-sm font-semibold text-[#141413]"
+									>
+										—
+									</div>
+								</div>
+							</div>
+							<!-- Summary totals bar -->
+							<div
+								class="px-6 py-3 flex items-center gap-8 bg-[#f8f7f2] text-sm"
+							>
+								<div class="flex items-center gap-2">
+									<span class="text-slate-500 text-xs">Total Withdrawals</span>
+									<span id="bank-debits" class="font-bold text-red-600">—</span>
+								</div>
+								<div class="w-px h-4 bg-slate-200"></div>
+								<div class="flex items-center gap-2">
+									<span class="text-slate-500 text-xs">Total Deposits</span>
+									<span id="bank-credits" class="font-bold text-emerald-600"
+										>—</span
+									>
+								</div>
+								<div class="w-px h-4 bg-slate-200"></div>
+								<div class="flex items-center gap-2">
+									<span class="text-slate-500 text-xs">Transactions</span>
+									<span id="bank-count" class="font-bold text-[#2a2a28]"
+										>—</span
+									>
+								</div>
+								<div class="ml-auto flex gap-2">
+									<button
+										id="bank-export-btn"
+										onclick="exportBank()"
+										class="hidden bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+									>
+										&#8595; Download Excel
+									</button>
+								</div>
+							</div>
+						</div>
 
-      </div><!-- /bank-statement-doc -->
-    </div>
-  </div>
-</div>
+						<!-- Statement of Account heading (like the original) -->
+						<div
+							class="text-center text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1"
+							id="stmt-heading"
+						>
+							Statement of Account
+						</div>
 
-<script>
-const API   = 'http://localhost:8000/api';
-let TOKEN   = localStorage.getItem('complai_token') || '';
-let FIRM_ID = localStorage.getItem('complai_firm_id') || '';
-let currentInvoiceIds = [];
-let currentClientId   = null;
-let currentMonthYear  = null;
-let bankClientId = null, bankMonthYear = null, bankJobId = null;
-let pollTimer = null;
+						<!-- Transaction Table -->
+						<div
+							class="bg-white border border-slate-200 rounded-xl card-shadow overflow-hidden"
+						>
+							<div class="overflow-x-auto">
+								<table class="w-full border-collapse text-xs">
+									<thead>
+										<tr class="border-b-2 border-slate-300">
+											<th
+												class="px-4 py-3 text-left font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]"
+											>
+												DATE
+											</th>
+											<th
+												class="px-4 py-3 text-left font-semibold text-[#3d3d3b] bg-[#f8f7f2]"
+											>
+												PARTICULARS
+											</th>
+											<th
+												class="px-4 py-3 text-left font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]"
+											>
+												CHQ.NO.
+											</th>
+											<th
+												class="px-4 py-3 text-right font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]"
+											>
+												WITHDRAWALS
+											</th>
+											<th
+												class="px-4 py-3 text-right font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]"
+											>
+												DEPOSITS
+											</th>
+											<th
+												class="px-4 py-3 text-right font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]"
+											>
+												BALANCE
+											</th>
+											<th
+												class="px-4 py-3 text-left font-semibold text-slate-400 whitespace-nowrap bg-[#f8f7f2] border-l border-slate-200"
+												title="Type the party/vendor name for each transaction. This maps to the Tally ledger name used during export."
+											>
+												PARTY NAME
+												<span class="font-normal normal-case text-slate-300"
+													>for Tally</span
+												>
+											</th>
+										</tr>
+									</thead>
+									<tbody
+										id="bank-table-body"
+										class="divide-y divide-slate-100"
+									></tbody>
+									<!-- Totals footer row -->
+									<tfoot>
+										<tr
+											class="border-t-2 border-slate-300 bg-[#f8f7f2] font-semibold text-xs"
+										>
+											<td
+												class="px-4 py-3 text-slate-500 whitespace-nowrap"
+												colspan="3"
+											>
+												Total
+											</td>
+											<td
+												id="foot-withdrawals"
+												class="px-4 py-3 text-right text-red-600 font-bold whitespace-nowrap"
+											></td>
+											<td
+												id="foot-deposits"
+												class="px-4 py-3 text-right text-emerald-600 font-bold whitespace-nowrap"
+											></td>
+											<td
+												id="foot-balance"
+												class="px-4 py-3 text-right text-[#2a2a28] font-bold whitespace-nowrap"
+											></td>
+											<td class="px-4 py-3 border-l border-slate-200"></td>
+										</tr>
+									</tfoot>
+								</table>
+							</div>
+						</div>
+					</div>
+					<!-- /bank-statement-doc -->
+				</div>
+			</div>
+			<!-- /pane-upload -->
 
-window.onload = () => {
-  const now = new Date();
-  const ym  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  document.getElementById('month-select').value = ym;
-  document.getElementById('bank-month-select').value = ym;
-  if (TOKEN) showApp();
-  else {
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.getElementById('login-screen').classList.add('flex');
-  }
-};
+			<!-- WHATSAPP TAB -->
+			<div id="pane-whatsapp" class="px-4 py-2">
+				<!-- White card wrapper — matches the visual style of the other tabs -->
+				<div class="bg-white rounded-xl border border-slate-200 card-shadow mb-5">
+					<!-- Header -->
+					<div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+						<div>
+							<h2 class="text-sm font-bold text-[#141413] flex items-center gap-2">
+								<svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+								WhatsApp Inbox
+							</h2>
+							<p class="text-xs text-slate-400 mt-0.5">Auto-processed · live updates every 8 s</p>
+						</div>
+						<button onclick="loadWhatsappInbox()"
+							class="flex items-center gap-1.5 text-xs text-brand-500 font-semibold border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition">
+							<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+							Refresh
+						</button>
+					</div>
+					<!-- Client cards — one card per client, sorted: errors → processing → done -->
+					<div id="wa-inbox-list" class="p-4 space-y-3">
+						<div class="text-center text-slate-400 text-sm py-10">Loading inbox…</div>
+					</div>
+				</div>
+			</div>
 
-async function doLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  const pass  = document.getElementById('login-pass').value;
-  const errEl = document.getElementById('login-error');
-  errEl.classList.add('hidden');
-  try {
-    const res = await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
-    if (!res.ok) { const e=await res.json(); errEl.textContent=e.detail||'Login failed'; errEl.classList.remove('hidden'); return; }
-    const data = await res.json();
-    TOKEN=data.token; FIRM_ID=data.firm_id;
-    localStorage.setItem('complai_token',TOKEN); localStorage.setItem('complai_firm_id',FIRM_ID);
-    showApp();
-  } catch(e) { errEl.textContent='Connection error'; errEl.classList.remove('hidden'); }
-}
+		</div>
 
-function logout() {
-  TOKEN=''; FIRM_ID='';
-  localStorage.removeItem('complai_token'); localStorage.removeItem('complai_firm_id');
-  location.reload();
-}
+		<script>
+			// Auto-detect API base: works on localhost AND via ngrok/any domain
+			const API = window.location.origin + '/api';
+			let TOKEN = localStorage.getItem('complai_token') || '';
+			let FIRM_ID = localStorage.getItem('complai_firm_id') || '';
+			let currentInvoiceIds = [];
+			let currentClientId = null;
+			let currentMonthYear = null;
+			let bankClientId = null,
+				bankMonthYear = null,
+				bankJobId = null;
+			let pollTimer = null;
 
-function showApp() {
-  document.getElementById('login-screen').classList.add('hidden');
-  document.getElementById('main-app').classList.remove('hidden');
-  document.getElementById('cost-bar').classList.remove('hidden');
-  document.getElementById('cost-bar').classList.add('flex');
-  document.getElementById('logout-btn').classList.remove('hidden');
-  loadClients(); refreshCost(); setInterval(refreshCost,30000);
-}
+			window.onload = () => {
+				const now = new Date();
+				const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+				document.getElementById('month-select').value = ym;
+				document.getElementById('bank-month-select').value = ym;
+				if (TOKEN) showApp();
+				else {
+					document.getElementById('login-screen').classList.remove('hidden');
+					document.getElementById('login-screen').classList.add('flex');
+				}
+			};
 
-async function api(path,opts={}) {
-  const res = await fetch(`${API}${path}`,{...opts,headers:{'Authorization':`Bearer ${TOKEN}`,...(opts.headers||{})}});
-  if (res.status===401) { logout(); return null; }
-  return res;
-}
+			async function doLogin() {
+				const email = document.getElementById('login-email').value.trim();
+				const pass = document.getElementById('login-pass').value;
+				const errEl = document.getElementById('login-error');
+				errEl.classList.add('hidden');
+				try {
+					const res = await fetch(`${API}/auth/login`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ email, password: pass }),
+					});
+					if (!res.ok) {
+						const e = await res.json();
+						errEl.textContent = e.detail || 'Login failed';
+						errEl.classList.remove('hidden');
+						return;
+					}
+					const data = await res.json();
+					TOKEN = data.token;
+					FIRM_ID = data.firm_id;
+					localStorage.setItem('complai_token', TOKEN);
+					localStorage.setItem('complai_firm_id', FIRM_ID);
+					showApp();
+				} catch (e) {
+					errEl.textContent = 'Connection error';
+					errEl.classList.remove('hidden');
+				}
+			}
 
-async function loadClients() {
-  const res = await api('/clients'); if (!res) return;
-  const clients = await res.json();
-  ['client-select','bank-client-select'].forEach(id => {
-    const sel = document.getElementById(id);
-    sel.innerHTML='<option value="">— Select client —</option>';
-    clients.forEach(c => { const o=document.createElement('option'); o.value=c.id; o.textContent=`${c.name}${c.gstin?' · '+c.gstin:''}`; sel.appendChild(o); });
-  });
-}
+			function logout() {
+				TOKEN = '';
+				FIRM_ID = '';
+				localStorage.removeItem('complai_token');
+				localStorage.removeItem('complai_firm_id');
+				location.reload();
+			}
 
-function onClientChange() { currentClientId = document.getElementById('client-select').value || null; }
+			function showApp() {
+				document.getElementById('login-screen').classList.add('hidden');
+				document.getElementById('main-app').classList.remove('hidden');
+				document.getElementById('main-app').classList.replace('pt-14','pt-24');
+				document.getElementById('cost-bar').classList.remove('hidden');
+				document.getElementById('cost-bar').classList.add('flex');
+				document.getElementById('logout-btn').classList.remove('hidden');
+				document.getElementById('accuracy-banner').classList.remove('hidden');
+				loadClients();
+				refreshCost();
+				setInterval(refreshCost, 30000);
+				// Default to WhatsApp tab; Upload tab defaults to Invoice sub-section
+				switchUploadType('invoices');
+				loadWhatsappInbox();
+			}
 
-function switchTab(tab) {
-  ['invoices','bank'].forEach(t => {
-    document.getElementById(`pane-${t}`).classList.toggle('hidden',t!==tab);
-    const btn=document.getElementById(`tab-${t}`);
-    btn.classList.toggle('bg-indigo-600',t===tab); btn.classList.toggle('text-white',t===tab); btn.classList.toggle('text-slate-500',t!==tab);
-  });
-}
+			async function api(path, opts = {}) {
+				const res = await fetch(`${API}${path}`, {
+					...opts,
+					headers: {
+						Authorization: `Bearer ${TOKEN}`,
+						'ngrok-skip-browser-warning': 'true',  // bypass ngrok interstitial page
+						...(opts.headers || {}),
+					},
+				});
+				if (res.status === 401) {
+					logout();
+					return null;
+				}
+				return res;
+			}
 
-function setDropZoneLocked(type, locked) {
-  const zoneId  = type === 'invoices' ? 'drop-zone' : 'bank-drop-zone';
-  const inputId = type === 'invoices' ? 'file-input' : 'bank-file-input';
-  const zone    = document.getElementById(zoneId);
-  const input   = document.getElementById(inputId);
-  if (!zone) return;
-  if (locked) {
-    zone.classList.add('dz-locked');
-    if (input) input.disabled = true;
-  } else {
-    zone.classList.remove('dz-locked');
-    if (input) input.disabled = false;
-  }
-}
+			async function loadClients() {
+				const res = await api('/clients');
+				if (!res) return;
+				const clients = await res.json();
+				['client-select', 'bank-client-select'].forEach((id) => {
+					const sel = document.getElementById(id);
+					sel.innerHTML = '<option value="">— Select client —</option>';
+					clients.forEach((c) => {
+						const o = document.createElement('option');
+						o.value = c.id;
+						o.textContent = `${c.name}${c.gstin ? ' · ' + c.gstin : ''}`;
+						sel.appendChild(o);
+					});
+				});
+			}
 
-function onDragOver(e) {
-  if (e.currentTarget.classList.contains('dz-locked')) return;
-  e.preventDefault(); e.currentTarget.classList.add('drag-over');
-}
-function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
-function onDrop(e,type) {
-  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-  if (e.currentTarget.classList.contains('dz-locked')) return;
-  const f=e.dataTransfer.files[0]; if(f) uploadFile(f,type);
-}
+			function onClientChange() {
+				currentClientId =
+					document.getElementById('client-select').value || null;
+			}
 
-async function uploadFile(file,type) {
-  document.getElementById(type==='invoices'?'file-input':'bank-file-input').value='';
-  if (!file) return;
-  const clientId  = document.getElementById(type==='invoices'?'client-select':'bank-client-select').value;
-  const monthYear = document.getElementById(type==='invoices'?'month-select':'bank-month-select').value;
-  if (!clientId)  { showToast('Please select a client first.','warn'); return; }
-  if (!monthYear) { showToast('Please select a month.','warn'); return; }
-  if (file.size>40*1024*1024) { showToast('File too large. Max 40 MB.','error'); return; }
-  const fd=new FormData(); fd.append('file',file); fd.append('client_id',clientId); fd.append('month_year',monthYear);
-  try {
-    const res = await api(type==='invoices'?'/upload':'/bank/upload',{method:'POST',body:fd});
-    if (!res||!res.ok) { const e=await res.json(); showToast(e.detail?.error||'Upload failed','error'); return; }
-    const data = await res.json();
-    if (type==='invoices') {
-      currentClientId=clientId; currentMonthYear=monthYear;
-      startPolling(data.job_id,'invoices');
-    } else {
-      // bank upload — hide any previous statement and start polling
-      document.getElementById('bank-statement-doc').classList.add('hidden');
-      bankJobId=data.job_id; bankClientId=clientId; bankMonthYear=monthYear;
-      startPolling(data.job_id,'bank');
-    }
-  } catch(e) { showToast('Network error during upload','error'); }
-}
+			function switchTab(tab) {
+				['whatsapp', 'upload'].forEach((t) => {
+					document.getElementById(`pane-${t}`).classList.toggle('hidden', t !== tab);
+					const btn = document.getElementById(`tab-${t}`);
+					if (!btn) return;
+					btn.classList.toggle('bg-brand-500', t === tab);
+					btn.classList.toggle('text-white', t === tab);
+					btn.classList.toggle('text-slate-500', t !== tab);
+					btn.classList.toggle('hover:bg-slate-100', t !== tab);
+				});
+				if (tab === 'whatsapp') loadWhatsappInbox();
+			}
 
-function showToast(msg,type='info') {
-  const colors={warn:'bg-amber-500',error:'bg-red-500',success:'bg-emerald-500',info:'bg-slate-700'};
-  const t=document.createElement('div');
-  t.className=`fixed bottom-5 right-5 z-50 ${colors[type]} text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg fade-in`;
-  t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),3500);
-}
+			// Toggle between Invoice and Bank Statement inside the Upload tab
+			let _currentUploadType = 'invoices';
+			function switchUploadType(type) {
+				_currentUploadType = type;
+				['invoices', 'bank'].forEach(t => {
+					document.getElementById(`pane-${t}`).classList.toggle('hidden', t !== type);
+					const btn = document.getElementById(`upload-type-${t}`);
+					if (!btn) return;
+					const active = t === type;
+					btn.classList.toggle('bg-white', active);
+					btn.classList.toggle('text-[#141413]', active);
+					btn.classList.toggle('shadow-sm', active);
+					btn.classList.toggle('text-slate-500', !active);
+				});
+			}
 
-let _pollStart = null;
-let _lastPartialDone = 0;
-function startPolling(jobId,type) {
-  if (pollTimer) clearInterval(pollTimer);
-  _pollStart = Date.now();
-  _lastPartialDone = 0;
-  setDropZoneLocked(type, true);   // ← lock drop zone while processing
-  const prefix=type==='invoices'?'':'bank-';
-  document.getElementById(`${prefix}progress-container`).classList.remove('hidden');
-  document.getElementById(`${prefix}progress-bar`).style.width='5%';
-  pollTimer=setInterval(async()=>{
-    const res=await api(type==='invoices'?`/extract/status/${jobId}`:`/bank/status/${jobId}`);
-    if (!res) return;
-    const s=await res.json();
-    const done=s.chunks_done||0, total=s.chunks_total||0;
-    // Animate progress bar
-    let pct;
-    if (total > 1 && done > 0) {
-      // Real per-page progress (digital PDFs and bank statements update done each page)
-      pct = Math.max(10, Math.round(done/total*100));
-    } else {
-      // Elapsed-time animation: covers scanned PDFs (done stays 0 until finish)
-      // and any job where chunks haven't started updating yet.
-      // Grows ~0.8% per second, slows near 85% so it never falsely hits 100%.
-      const elapsed = Math.floor((Date.now() - (_pollStart||Date.now())) / 1000);
-      pct = Math.min(85, 5 + elapsed * 0.8);
-    }
-    document.getElementById(`${prefix}progress-bar`).style.width=`${pct}%`;
-    // Status text
-    let statusText = 'Queued…';
-    if (s.status === 'processing') {
-      if (total > 1 && done > 0) {
-        statusText = `${type==='invoices'?'Page':'Txn'} ${done} / ${total}`;
-      } else if (total > 0) {
-        const elapsed = Math.floor((Date.now() - (_pollStart||Date.now())) / 1000);
-        statusText = type==='invoices'
-          ? (elapsed < 15 ? 'Running OCR…' : 'Extracting data…')
-          : 'Extracting transactions…';
-      } else {
-        statusText = type==='invoices' ? 'Running OCR…' : 'Extracting transactions…';
-      }
-    }
-    document.getElementById(`${prefix}progress-text`).textContent=statusText;
-    // Show partial results while processing (invoices tab only)
-    if (type==='invoices' && s.status==='processing' && done > 0 && done > _lastPartialDone) {
-      _lastPartialDone = done;
-      loadResults(jobId);
-      document.getElementById('partial-banner').classList.remove('hidden');
-      document.getElementById('partial-banner-text').textContent =
-        `Still processing — ${done} of ${total} pages done, results updating live…`;
-    }
-    if (s.status==='done') {
-      clearInterval(pollTimer);
-      setDropZoneLocked(type, false);  // ← unlock on success
-      document.getElementById(`${prefix}progress-bar`).style.width='100%';
-      if (type==='invoices') document.getElementById('partial-banner').classList.add('hidden');
-      setTimeout(()=>{ document.getElementById(`${prefix}progress-container`).classList.add('hidden'); if(type==='invoices') loadResults(jobId); else loadBankResults(jobId); refreshCost(); },400);
-    } else if (s.status==='error') {
-      clearInterval(pollTimer);
-      setDropZoneLocked(type, false);  // ← unlock on error too
-      document.getElementById(`${prefix}progress-container`).classList.add('hidden');
-      if (type==='invoices') document.getElementById('partial-banner').classList.add('hidden');
-      showToast(`Processing failed: ${s.error||'Unknown error'}`,'error');
-    }
-  },3000);
-}
+			// ── WhatsApp Inbox ──────────────────────────────────────
+			const WA_STATUS_COLOR = {
+				done: 'bg-emerald-100 text-emerald-700',
+				processing: 'bg-amber-100 text-amber-700',
+				queued: 'bg-slate-100 text-[#3d3d3b]',
+				error: 'bg-red-100 text-red-700',
+			};
+			const WA_STATUS_LABEL = {
+				done: '✓ Done', processing: '⏳ Processing…', queued: '⏳ Queued', error: '✗ Error',
+			};
 
-async function loadResults(jobId) {
-  const res=await api(`/extract/result/${jobId}`); if (!res) return;
-  const data=await res.json();
-  currentInvoiceIds=data.invoices.map(i=>i.id);
-  const container=document.getElementById('invoice-results');
-  container.innerHTML='';
-  if (!data.invoices.length) {
-    container.innerHTML=`<div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800 flex items-start gap-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/></svg><div><div class="font-semibold mb-0.5">No invoices found</div><div class="text-amber-700">No invoice data could be extracted. Try a clearer image.</div></div></div>`;
-    return;
-  }
-  data.invoices.forEach(inv=>container.appendChild(buildInvoiceCard(inv)));
-  document.getElementById('export-buttons').classList.remove('hidden');
-  document.getElementById('export-buttons').classList.add('flex');
-}
+			// ── WhatsApp Inbox — Client Card approach (Option 5) ─────────────
+			// Track which WA job panels have been fully fetched (avoids re-fetch on toggle)
+			const _waPanelLoaded = new Set();
+			// Full jobs list from last API response
+			let _waAllJobs = [];
+			// Which client cards are currently expanded
+			const _waExpandedClients = new Set();
 
-// ── Confidence helpers ─────────────────────────────────────
-function confClass(pct) { return pct>=80?'conf-green':pct>=60?'conf-amber':'conf-red'; }
-function confDotClass(pct) { return pct>=80?'conf-dot-green':pct>=60?'conf-dot-amber':'conf-dot-red'; }
-function confBadgeClass(pct) { return pct>=80?'conf-badge-green':pct>=60?'conf-badge-amber':'conf-badge-red'; }
-function fieldConf(fc, field) {
-  if (!fc||fc[field]==null) return null;
-  return Math.round(fc[field]*100);
-}
-// Legacy dot-only (used in line items header)
-function confDot(fc, field) {
-  const pct=fieldConf(fc,field);
-  if (pct==null) return '';
-  return `<span class="conf-dot ${confDotClass(pct)}" title="${field}: ${pct}% confidence"></span>`;
-}
-// Badge = colored pill with dot + % number (used in field labels)
-function confBadge(fc, field) {
-  const pct=fieldConf(fc,field);
-  if (pct==null) return '';
-  return `<span class="conf-badge ${confBadgeClass(pct)}" title="${pct}% AI confidence for ${field}"><span class="conf-dot ${confDotClass(pct)}" style="width:6px;height:6px"></span>${pct}%</span>`;
-}
+			/** DOM-safe key from a client name (e.g. "M/s XYZ Pvt Ltd" → "m-s-xyz-pvt-ltd") */
+			function _clientKey(name) {
+				return (name || 'unknown').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown';
+			}
 
-// ── GST Smart Calculator ────────────────────────────────────
-function round2(v) { return Math.round(v*100)/100; }
+			/**
+			 * Group a flat jobs array by client.
+			 * Returns array of { key, name, phone, jobs[], worstStatus }
+			 * sorted: error → processing/queued → done
+			 */
+			function _groupJobsByClient(jobs) {
+				const PRIO = { error: 3, processing: 2, queued: 2, done: 1 };
+				const map = new Map();
+				jobs.forEach(j => {
+					const key = _clientKey(j.client_name);
+					if (!map.has(key)) map.set(key, { key, name: j.client_name, phone: j.client_phone, jobs: [], worstStatus: 'done' });
+					const c = map.get(key);
+					c.jobs.push(j);
+					if ((PRIO[j.status] || 0) > (PRIO[c.worstStatus] || 0)) c.worstStatus = j.status;
+				});
+				const ORDER = { error: 0, processing: 1, queued: 1, done: 2 };
+				return [...map.values()].sort((a, b) => (ORDER[a.worstStatus] ?? 2) - (ORDER[b.worstStatus] ?? 2));
+			}
 
-function inferGstRate(inv) {
-  // Try from first line item
-  const items = inv.line_items || [];
-  for (const li of items) {
-    if (li.gst_rate != null && li.gst_rate > 0) return li.gst_rate;
-  }
-  // Infer from cgst/taxable
-  if (inv.cgst && inv.taxable_value && inv.taxable_value > 0) {
-    const r = Math.round(inv.cgst / inv.taxable_value * 200);
-    if ([5,12,18,28].includes(r)) return r;
-  }
-  return 18;
-}
+			/** Visual style for a given worstStatus */
+			function _clientStatusStyle(status) {
+				if (status === 'error')      return { border: '#ef4444', badge: 'bg-red-100 text-red-700',     label: '✗ Error' };
+				if (status === 'processing' || status === 'queued')
+				                             return { border: '#f59e0b', badge: 'bg-amber-100 text-amber-700', label: '⏳ Processing…' };
+				return                              { border: '#22c55e', badge: 'bg-emerald-100 text-emerald-700', label: '✓ Done' };
+			}
 
-function setGstRate(invId, rate) {
-  const inp = document.getElementById(`gst-rate-${invId}`);
-  if (inp) inp.value = rate;
-  [5,12,18,28].forEach(r => {
-    const btn = document.getElementById(`gst-rate-btn-${invId}-${r}`);
-    if (btn) btn.classList.toggle('rate-active', r == rate);
-  });
-}
+			/** Build a single job row (inside an expanded client card) */
+			function _buildJobRow(j) {
+				const sc  = WA_STATUS_COLOR[j.status] || 'bg-slate-100 text-slate-500';
+				const sl  = WA_STATUS_LABEL[j.status] || j.status;
+				const inv = j.invoice_count > 0 ? ` · ${j.invoice_count} invoice${j.invoice_count > 1 ? 's' : ''}` : '';
+				const errHtml = j.error ? `<p class="text-xs text-red-500 mt-0.5 truncate" title="${j.error}">⚠ ${j.error}</p>` : '';
+				const spin = (j.status === 'processing' || j.status === 'queued')
+					? `<svg class="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>` : '';
+				const viewBtn = j.status === 'done'
+					? `<button type="button" onclick="toggleWAResult('${j.job_id}')" id="wa-toggle-${j.job_id}" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-200 text-brand-500 hover:bg-brand-50 transition flex items-center gap-1"><span id="wa-toggle-icon-${j.job_id}">▾</span> View</button>`
+					: `<span id="wa-toggle-${j.job_id}"></span>`;
+				return `<div id="wa-card-${j.job_id}" class="border-t border-slate-100">
+					<div class="flex items-center gap-3 px-5 py-3">
+						<div id="wa-spin-${j.job_id}" class="w-4 flex-shrink-0">${spin}</div>
+						<div class="flex-1 min-w-0">
+							<div class="flex items-center gap-2 flex-wrap">
+								<span id="wa-status-badge-${j.job_id}" class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${sc}">${sl}</span>
+								<span class="text-xs text-slate-500">${j.created_at}${j.month_year ? ' · ' + j.month_year : ''}${inv}</span>
+							</div>
+							<div id="wa-err-${j.job_id}">${errHtml}</div>
+						</div>
+						<div id="wa-btn-${j.job_id}" class="flex-shrink-0">${viewBtn}</div>
+					</div>
+					<div id="wa-panel-${j.job_id}" class="hidden bg-[#f8f7f2]/60 border-t border-slate-100 px-5 pb-5 pt-4 space-y-4"></div>
+				</div>`;
+			}
 
-function _markCalc(invId, field, on) {
-  const tag = document.getElementById(`calc-tag-${invId}-${field}`);
-  if (tag) { tag.textContent = on ? '≈ auto' : ''; tag.className = on ? 'calc-tag' : ''; }
-  const inp = document.getElementById(`f_${invId}_${field}`);
-  if (inp) {
-    inp.classList.toggle('calc-glow', on);
-    if (on) setTimeout(() => inp.classList.remove('calc-glow'), 1800);
-  }
-}
+			/** Build a full client card with all its job rows inside */
+			function _buildClientCard(c) {
+				const st = _clientStatusStyle(c.worstStatus);
+				// Auto-expand cards that have errors or active jobs
+				const autoExpand = c.worstStatus !== 'done';
+				if (autoExpand) _waExpandedClients.add(c.key);
+				const isExpanded = _waExpandedClients.has(c.key);
+				const total = c.jobs.length;
+				const jobsHtml = c.jobs.map(_buildJobRow).join('');
+				return `<div id="wa-client-${c.key}" class="bg-white rounded-xl border border-slate-200 card-shadow overflow-hidden">
+					<div onclick="toggleClientCard('${c.key}')" class="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-[#f8f7f2] transition select-none" style="border-left:4px solid ${st.border}">
+						<div class="flex-1 min-w-0">
+							<div class="flex items-center gap-2 flex-wrap">
+								<span class="font-semibold text-[#141413]">${c.name}</span>
+								<span id="wa-client-badge-${c.key}" class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${st.badge}">${st.label}</span>
+								<span id="wa-client-count-${c.key}" class="text-xs text-slate-400">${total} upload${total !== 1 ? 's' : ''}</span>
+							</div>
+							<div class="text-xs text-slate-400 mt-0.5">${c.phone}</div>
+						</div>
+						<svg id="wa-client-chevron-${c.key}" class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+					</div>
+					<div id="wa-client-jobs-${c.key}" class="${isExpanded ? '' : 'hidden'}">
+						${jobsHtml}
+					</div>
+				</div>`;
+			}
 
-function _doGstCascade(invId, field) {
-  const g = f => parseFloat(document.getElementById(`f_${invId}_${f}`)?.value) || 0;
-  const s = (f, v) => {
-    const el = document.getElementById(`f_${invId}_${f}`);
-    if (!el) return;
-    el.value = v > 0 ? v.toFixed(2) : '';
-    _markCalc(invId, f, true);
-  };
+			/** Toggle expand/collapse of a client card */
+			function toggleClientCard(key) {
+				const jobs    = document.getElementById(`wa-client-jobs-${key}`);
+				const chevron = document.getElementById(`wa-client-chevron-${key}`);
+				if (!jobs) return;
+				const nowHidden = jobs.classList.toggle('hidden');
+				if (nowHidden) { _waExpandedClients.delete(key); chevron && chevron.classList.remove('rotate-180'); }
+				else           { _waExpandedClients.add(key);    chevron && chevron.classList.add('rotate-180'); }
+			}
 
-  const txType = document.getElementById(`f_${invId}_transaction_type`)?.value || 'intrastate';
-  const rate   = parseFloat(document.getElementById(`gst-rate-${invId}`)?.value || '18');
-  const taxable = g('taxable_value');
+			async function loadWhatsappInbox() {
+				const res = await api('/extract/whatsapp-inbox');
+				if (!res || !res.ok) return;
+				const data = await res.json();
+				_waAllJobs = data.jobs || [];
 
-  if (field === 'taxable_value') {
-    if (txType === 'interstate') {
-      const igst = round2(taxable * rate / 100);
-      s('cgst', 0); s('sgst', 0); s('igst', igst); s('total_gst', igst);
-    } else {
-      const each = round2(taxable * rate / 200);
-      s('cgst', each); s('sgst', each); s('igst', 0); s('total_gst', round2(each * 2));
-    }
-    const tg = g('total_gst');
-    s('invoice_total', round2(taxable + tg));
-    s('grand_total',   round2(taxable + tg));
+				// Update tab badge
+				const pending = _waAllJobs.filter(j => j.status === 'queued' || j.status === 'processing').length;
+				const badge = document.getElementById('wa-badge');
+				if (pending > 0) { badge.textContent = pending; badge.classList.remove('hidden'); }
+				else { badge.classList.add('hidden'); }
 
-  } else if (field === 'cgst') {
-    const cgst = g('cgst');
-    s('sgst', cgst);                              // mirror SGST = CGST for intrastate
-    const tg = round2(cgst * 2 + g('igst'));
-    s('total_gst', tg);
-    s('invoice_total', round2(taxable + tg));
-    s('grand_total',   round2(taxable + tg));
+				const list   = document.getElementById('wa-inbox-list');
+				const groups = _groupJobsByClient(_waAllJobs);
 
-  } else if (field === 'sgst' || field === 'igst') {
-    const tg = round2(g('cgst') + g('sgst') + g('igst'));
-    s('total_gst', tg);
-    s('invoice_total', round2(taxable + tg));
-    s('grand_total',   round2(taxable + tg));
+				if (!groups.length) {
+					list.innerHTML = `<div class="text-center text-slate-400 text-sm py-14">
+						<p class="font-medium">No WhatsApp uploads yet</p>
+						<p class="text-xs mt-1">Have clients send invoice photos or PDFs to your Twilio number.</p>
+					</div>`;
+					return;
+				}
 
-  } else if (field === 'total_gst') {
-    const tg = g('total_gst');
-    s('invoice_total', round2(taxable + tg));
-    s('grand_total',   round2(taxable + tg));
+				const existingClientKeys = new Set(
+					[...list.querySelectorAll('[id^="wa-client-"]')].map(el => el.id.replace('wa-client-', ''))
+				);
 
-  } else if (field === 'invoice_total') {
-    s('grand_total', g('invoice_total'));
-  }
-}
+				if (existingClientKeys.size === 0) {
+					// ── Initial render ──────────────────────────────────
+					list.innerHTML = '';
+					groups.forEach(c => {
+						const tmp = document.createElement('div');
+						tmp.innerHTML = _buildClientCard(c);
+						list.appendChild(tmp.firstElementChild);
+					});
+				} else {
+					// ── Smart in-place update ────────────────────────────
+					groups.forEach(c => {
+						if (!existingClientKeys.has(c.key)) {
+							// Brand-new client — add card (prepend so it appears near top)
+							const tmp = document.createElement('div');
+							tmp.innerHTML = _buildClientCard(c);
+							list.prepend(tmp.firstElementChild);
+						} else {
+							// Update client header: badge + left-border color + upload count
+							const st = _clientStatusStyle(c.worstStatus);
+							const clientBadge = document.getElementById(`wa-client-badge-${c.key}`);
+							if (clientBadge) { clientBadge.className = `text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${st.badge}`; clientBadge.textContent = st.label; }
+							const clientHdr = document.querySelector(`#wa-client-${c.key} > div:first-child`);
+							if (clientHdr) clientHdr.style.borderLeftColor = st.border;
+							const countEl = document.getElementById(`wa-client-count-${c.key}`);
+							if (countEl) { const t = c.jobs.length; countEl.textContent = `${t} upload${t !== 1 ? 's' : ''}`; }
 
-function gstCascade(invId, field, el) {
-  const conf = parseInt(el.dataset.conf || '0');
-  // Mark as manually edited so future cascades always fire
-  el.dataset.manualEdit = '1';
+							// Auto-expand if newly active
+							if (c.worstStatus !== 'done' && !_waExpandedClients.has(c.key)) toggleClientCard(c.key);
 
-  // Remove any pending recalc suggestion
-  const sug = document.getElementById(`recalc-sug-${invId}-${field}`);
-  if (sug) sug.remove();
+							// Update / add individual job rows
+							const jobsContainer = document.getElementById(`wa-client-jobs-${c.key}`);
+							const existingJobIds = new Set(
+								jobsContainer
+									? [...jobsContainer.querySelectorAll('[id^="wa-card-"]')].map(el => el.id.replace('wa-card-', ''))
+									: []
+							);
+							c.jobs.forEach(j => {
+								if (!existingJobIds.has(j.job_id)) {
+									// New job for this client
+									if (jobsContainer) {
+										const tmp = document.createElement('div');
+										tmp.innerHTML = _buildJobRow(j);
+										jobsContainer.prepend(tmp.firstElementChild);
+									}
+								} else {
+									// In-place update of job row
+									const sc = WA_STATUS_COLOR[j.status] || 'bg-slate-100 text-slate-500';
+									const sl = WA_STATUS_LABEL[j.status] || j.status;
+									const b  = document.getElementById(`wa-status-badge-${j.job_id}`);
+									if (b) { b.className = `text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${sc}`; b.textContent = sl; }
 
-  if (conf >= 90 || el.dataset.manualEdit === '1') {
-    _doGstCascade(invId, field);
-  } else {
-    // Low confidence — show a "Recalc?" suggestion instead of auto-changing
-    const row = el.closest('.flex');
-    if (row && !document.getElementById(`recalc-sug-${invId}-${field}`)) {
-      const pill = document.createElement('span');
-      pill.id = `recalc-sug-${invId}-${field}`;
-      pill.className = 'recalc-pill';
-      pill.innerHTML = '&#8635; Recalc?';
-      pill.onclick = () => { _doGstCascade(invId, field); pill.remove(); };
-      row.appendChild(pill);
-    }
-  }
-}
+									const spinEl = document.getElementById(`wa-spin-${j.job_id}`);
+									if (spinEl) {
+										const active = j.status === 'processing' || j.status === 'queued';
+										spinEl.innerHTML = active
+											? `<svg class="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>`
+											: '';
+									}
 
-// ── Line item → GST Summary rollup ─────────────────────────
-function lineItemCascade(invId, el) {
-  const row = el.closest('tr');
-  if (!row) return;
-  const g = f => parseFloat(row.querySelector(`[data-field="${f}"]`)?.value) || 0;
-  const s = (f, v) => { const i = row.querySelector(`[data-field="${f}"]`); if (i) i.value = v > 0 ? v.toFixed(2) : ''; };
+									// Inject View button the moment a job becomes done
+									const btnEl = document.getElementById(`wa-btn-${j.job_id}`);
+									if (btnEl && j.status === 'done' && !btnEl.querySelector('button')) {
+										btnEl.innerHTML = `<button type="button" onclick="toggleWAResult('${j.job_id}')" id="wa-toggle-${j.job_id}" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-200 text-brand-500 hover:bg-brand-50 transition flex items-center gap-1"><span id="wa-toggle-icon-${j.job_id}">▾</span> View</button>`;
+									}
 
-  const field = el.dataset.field;
+									const errEl = document.getElementById(`wa-err-${j.job_id}`);
+									if (errEl && j.error) errEl.innerHTML = `<p class="text-xs text-red-500 mt-0.5 truncate" title="${j.error}">⚠ ${j.error}</p>`;
+								}
+							});
+						}
+					});
+				}
+			}
 
-  // If qty or unit_price changed → update taxable_value
-  if (field === 'quantity' || field === 'unit_price') {
-    const qty   = g('quantity');
-    const price = g('unit_price');
-    if (qty > 0 && price > 0) s('taxable_value', round2(qty * price));
-  }
+			async function toggleWAResult(jobId) {
+				const panel = document.getElementById(`wa-panel-${jobId}`);
+				const icon  = document.getElementById(`wa-toggle-icon-${jobId}`);
+				if (!panel) return;
+				if (!panel.classList.contains('hidden')) {
+					panel.classList.add('hidden');
+					if (icon) icon.textContent = '▾';
+					return;
+				}
+				panel.classList.remove('hidden');
+				if (icon) icon.textContent = '▴';
+				// Only fetch+render once per session — avoids re-loading when panel is toggled
+				if (!_waPanelLoaded.has(jobId)) await _renderWAPanel(jobId, panel);
+			}
 
-  // Roll totals into the summary section (GST computed from taxable × rate)
-  rollupLineItems(invId);
-}
+			async function _renderWAPanel(jobId, panel) {
+				panel.innerHTML = `<div class="py-4 text-center text-sm text-slate-400">Loading invoices…</div>`;
+				const res = await api(`/extract/result/${jobId}`);
+				if (!res || !res.ok) { panel.innerHTML = `<div class="text-red-500 text-sm p-3">Failed to load.</div>`; return; }
+				const data = await res.json();
+				if (!data.invoices.length) {
+					panel.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+						⚠ No invoices extracted — Anthropic credits may be exhausted or image quality was too low.
+						<a href="https://console.anthropic.com" target="_blank" class="underline ml-1">Top up ↗</a>
+					</div>`;
+					return;
+				}
+				currentInvoiceIds = data.invoices.map(i => i.id);
+				panel.innerHTML = '';
+				const exportBar = document.createElement('div');
+				exportBar.className = 'flex gap-2 mb-3 flex-wrap';
+				exportBar.innerHTML = `
+					<button onclick="exportFile('busy')" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-emerald-700 transition">⬇ Busy Excel</button>
+					<button onclick="exportFile('tally')" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-blue-700 transition">⬇ Tally XML</button>`;
+				panel.appendChild(exportBar);
+				data.invoices.forEach(inv => panel.appendChild(buildInvoiceCard(inv)));
+				_waPanelLoaded.add(jobId); // mark as loaded so toggles don't re-fetch
+			}
 
-function rollupLineItems(invId) {
-  const tbody = document.getElementById(`li-body-${invId}`);
-  if (!tbody || !tbody.rows.length) return;
+			// Poll every 8s — update badge + smart-update inbox if on WA tab
+			// Smart update means open accordions are NOT destroyed on each poll.
+			setInterval(async () => {
+				const res = await api('/extract/whatsapp-inbox');
+				if (!res || !res.ok) return;
+				const data = await res.json();
+				const jobs = data.jobs || [];
+				const pending = jobs.filter(j => j.status === 'queued' || j.status === 'processing').length;
+				const badge = document.getElementById('wa-badge');
+				if (pending > 0) { badge.textContent = pending; badge.classList.remove('hidden'); }
+				else { badge.classList.add('hidden'); }
+				// If WhatsApp tab is active, do a smart in-place update (no DOM rebuild)
+				if (!document.getElementById('pane-whatsapp').classList.contains('hidden')) loadWhatsappInbox();
+			}, 8000);
 
-  const txType = document.getElementById(`f_${invId}_transaction_type`)?.value || 'intrastate';
-  let totTax=0, totCgst=0, totSgst=0, totIgst=0;
+			function setDropZoneLocked(type, locked) {
+				const zoneId = type === 'invoices' ? 'drop-zone' : 'bank-drop-zone';
+				const inputId = type === 'invoices' ? 'file-input' : 'bank-file-input';
+				const zone = document.getElementById(zoneId);
+				const input = document.getElementById(inputId);
+				if (!zone) return;
+				if (locked) {
+					zone.classList.add('dz-locked');
+					if (input) input.disabled = true;
+				} else {
+					zone.classList.remove('dz-locked');
+					if (input) input.disabled = false;
+				}
+			}
 
-  Array.from(tbody.rows).forEach(row => {
-    const taxable = parseFloat(row.querySelector('[data-field="taxable_value"]')?.value) || 0;
-    const rate    = parseFloat(row.querySelector('[data-field="gst_rate"]')?.value)       || 0;
-    totTax += taxable;
-    if (taxable > 0 && rate > 0) {
-      if (txType === 'interstate') {
-        totIgst += round2(taxable * rate / 100);
-      } else {
-        const each = round2(taxable * rate / 200);
-        totCgst += each;
-        totSgst += each;
-      }
-    }
-  });
+			function onDragOver(e) {
+				if (e.currentTarget.classList.contains('dz-locked')) return;
+				e.preventDefault();
+				e.currentTarget.classList.add('drag-over');
+			}
+			function onDragLeave(e) {
+				e.currentTarget.classList.remove('drag-over');
+			}
+			function onDrop(e, type) {
+				e.preventDefault();
+				e.currentTarget.classList.remove('drag-over');
+				if (e.currentTarget.classList.contains('dz-locked')) return;
+				const f = e.dataTransfer.files[0];
+				if (f) uploadFile(f, type);
+			}
 
-  const s = (f, v) => {
-    const el = document.getElementById(`f_${invId}_${f}`);
-    if (!el) return;
-    el.value = v > 0 ? v.toFixed(2) : '';
-    _markCalc(invId, f, true);
-  };
-  const totGst = round2(totCgst + totSgst + totIgst);
-  s('taxable_value', round2(totTax));
-  s('cgst',          round2(totCgst));
-  s('sgst',          round2(totSgst));
-  s('igst',          round2(totIgst));
-  s('total_gst',     totGst);
-  s('invoice_total', round2(totTax + totGst));
-  s('grand_total',   round2(totTax + totGst));
-}
+			async function uploadFile(file, type) {
+				document.getElementById(
+					type === 'invoices' ? 'file-input' : 'bank-file-input',
+				).value = '';
+				if (!file) return;
+				const clientId = document.getElementById(
+					type === 'invoices' ? 'client-select' : 'bank-client-select',
+				).value;
+				const monthYear = document.getElementById(
+					type === 'invoices' ? 'month-select' : 'bank-month-select',
+				).value;
+				if (!clientId) {
+					showToast('Please select a client first.', 'warn');
+					return;
+				}
+				if (!monthYear) {
+					showToast('Please select a month.', 'warn');
+					return;
+				}
+				if (file.size > 40 * 1024 * 1024) {
+					showToast('File too large. Max 40 MB.', 'error');
+					return;
+				}
+				const fd = new FormData();
+				fd.append('file', file);
+				fd.append('client_id', clientId);
+				fd.append('month_year', monthYear);
+				try {
+					const res = await api(
+						type === 'invoices' ? '/upload' : '/bank/upload',
+						{ method: 'POST', body: fd },
+					);
+					if (!res || !res.ok) {
+						const e = await res.json();
+						showToast(e.detail?.error || 'Upload failed', 'error');
+						return;
+					}
+					const data = await res.json();
+					if (type === 'invoices') {
+						currentClientId = clientId;
+						currentMonthYear = monthYear;
+						startPolling(data.job_id, 'invoices');
+					} else {
+						// bank upload — hide any previous statement and start polling
+						document
+							.getElementById('bank-statement-doc')
+							.classList.add('hidden');
+						bankJobId = data.job_id;
+						bankClientId = clientId;
+						bankMonthYear = monthYear;
+						startPolling(data.job_id, 'bank');
+					}
+				} catch (e) {
+					showToast('Network error during upload', 'error');
+				}
+			}
 
-// ── Build invoice card ─────────────────────────────────────
-function buildInvoiceCard(inv) {
-  const pct    = Math.round((inv.combined_confidence||0)*100);
-  const ocrPct = Math.round((inv.ocr_confidence||0)*100);
-  const aiPct  = Math.round((inv.claude_confidence||0)*100);
-  const fc     = inv.field_confidence || {};
-  const needsR = inv.needs_review;
-  const manual = inv.manual_review_required;
-  const date   = inv.invoice_date ? new Date(inv.invoice_date+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
-  const layer  = inv.layer_used || '';
-  const layerLabel = {pdfplumber:'PDF Text',google_docai:'DocAI',claude_vision:'AI Vision',excel:'Excel'}[layer]||layer;
+			function showToast(msg, type = 'info') {
+				const colors = {
+					warn: 'bg-amber-500',
+					error: 'bg-red-500',
+					success: 'bg-emerald-500',
+					info: 'bg-slate-700',
+				};
+				const t = document.createElement('div');
+				t.className = `fixed bottom-5 right-5 z-50 ${colors[type]} text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg fade-in`;
+				t.textContent = msg;
+				document.body.appendChild(t);
+				setTimeout(() => t.remove(), 3500);
+			}
 
-  const borderClass = manual?'manual-border':needsR?'review-border':'accepted-border';
+			let _pollStart = null;
+			let _lastPartialDone = 0;
+			function startPolling(jobId, type) {
+				if (pollTimer) clearInterval(pollTimer);
+				_pollStart = Date.now();
+				_lastPartialDone = 0;
+				setDropZoneLocked(type, true); // ← lock drop zone while processing
+				const prefix = type === 'invoices' ? '' : 'bank-';
+				document
+					.getElementById(`${prefix}progress-container`)
+					.classList.remove('hidden');
+				document.getElementById(`${prefix}progress-bar`).style.width = '5%';
+				pollTimer = setInterval(async () => {
+					const res = await api(
+						type === 'invoices'
+							? `/extract/status/${jobId}`
+							: `/bank/status/${jobId}`,
+					);
+					if (!res) return;
+					const s = await res.json();
+					const done = s.chunks_done || 0,
+						total = s.chunks_total || 0;
+					// Animate progress bar
+					let pct;
+					if (total > 1 && done > 0) {
+						// Real per-page progress (digital PDFs and bank statements update done each page)
+						pct = Math.max(10, Math.round((done / total) * 100));
+					} else {
+						// Elapsed-time animation: covers scanned PDFs (done stays 0 until finish)
+						// and any job where chunks haven't started updating yet.
+						// Grows ~0.8% per second, slows near 85% so it never falsely hits 100%.
+						const elapsed = Math.floor(
+							(Date.now() - (_pollStart || Date.now())) / 1000,
+						);
+						pct = Math.min(85, 5 + elapsed * 0.8);
+					}
+					document.getElementById(`${prefix}progress-bar`).style.width =
+						`${pct}%`;
+					// Status text
+					let statusText = 'Queued…';
+					if (s.status === 'processing') {
+						if (total > 1 && done > 0) {
+							statusText = `${type === 'invoices' ? 'Page' : 'Txn'} ${done} / ${total}`;
+						} else if (total > 0) {
+							const elapsed = Math.floor(
+								(Date.now() - (_pollStart || Date.now())) / 1000,
+							);
+							statusText =
+								type === 'invoices'
+									? elapsed < 15
+										? 'Running OCR…'
+										: 'Extracting data…'
+									: 'Extracting transactions…';
+						} else {
+							statusText =
+								type === 'invoices'
+									? 'Running OCR…'
+									: 'Extracting transactions…';
+						}
+					}
+					document.getElementById(`${prefix}progress-text`).textContent =
+						statusText;
+					// Show partial results while processing (invoices tab only)
+					if (
+						type === 'invoices' &&
+						s.status === 'processing' &&
+						done > 0 &&
+						done > _lastPartialDone
+					) {
+						_lastPartialDone = done;
+						loadResults(jobId);
+						document
+							.getElementById('partial-banner')
+							.classList.remove('hidden');
+						document.getElementById('partial-banner-text').textContent =
+							`Still processing — ${done} of ${total} pages done, results updating live…`;
+					}
+					if (s.status === 'done') {
+						clearInterval(pollTimer);
+						setDropZoneLocked(type, false); // ← unlock on success
+						document.getElementById(`${prefix}progress-bar`).style.width =
+							'100%';
+						if (type === 'invoices')
+							document.getElementById('partial-banner').classList.add('hidden');
+						setTimeout(() => {
+							document
+								.getElementById(`${prefix}progress-container`)
+								.classList.add('hidden');
+							if (type === 'invoices') loadResults(jobId);
+							else loadBankResults(jobId);
+							refreshCost();
+						}, 400);
+					} else if (s.status === 'error') {
+						clearInterval(pollTimer);
+						setDropZoneLocked(type, false); // ← unlock on error too
+						document
+							.getElementById(`${prefix}progress-container`)
+							.classList.add('hidden');
+						if (type === 'invoices')
+							document.getElementById('partial-banner').classList.add('hidden');
+						showToast(
+							`Processing failed: ${s.error || 'Unknown error'}`,
+							'error',
+						);
+					}
+				}, 3000);
+			}
 
-  const card=document.createElement('div');
-  card.className=`bg-white rounded-xl border border-slate-200 overflow-hidden fade-in card-shadow ${borderClass}`;
-  card.id=`invoice-card-${inv.id}`;
+			async function loadResults(jobId) {
+				const res = await api(`/extract/result/${jobId}`);
+				if (!res) return;
+				const data = await res.json();
+				currentInvoiceIds = data.invoices.map((i) => i.id);
+				const container = document.getElementById('invoice-results');
+				container.innerHTML = '';
+				if (!data.invoices.length) {
+					container.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800 flex items-start gap-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/></svg><div><div class="font-semibold mb-0.5">No invoices found</div><div class="text-amber-700">No invoice data could be extracted. Try a clearer image.</div></div></div>`;
+					return;
+				}
+				data.invoices.forEach((inv) =>
+					container.appendChild(buildInvoiceCard(inv)),
+				);
+				document.getElementById('export-buttons').classList.remove('hidden');
+				document.getElementById('export-buttons').classList.add('flex');
+			}
 
-  card.innerHTML=`
+			// ── Confidence helpers ─────────────────────────────────────
+			function confClass(pct) {
+				return pct >= 80 ? 'conf-green' : pct >= 60 ? 'conf-amber' : 'conf-red';
+			}
+			function confDotClass(pct) {
+				return pct >= 80
+					? 'conf-dot-green'
+					: pct >= 60
+						? 'conf-dot-amber'
+						: 'conf-dot-red';
+			}
+			function confBadgeClass(pct) {
+				return pct >= 80
+					? 'conf-badge-green'
+					: pct >= 60
+						? 'conf-badge-amber'
+						: 'conf-badge-red';
+			}
+			function fieldConf(fc, field) {
+				if (!fc || fc[field] == null) return null;
+				return Math.round(fc[field] * 100);
+			}
+			// Legacy dot-only (used in line items header)
+			function confDot(fc, field) {
+				const pct = fieldConf(fc, field);
+				if (pct == null) return '';
+				return `<span class="conf-dot ${confDotClass(pct)}" title="${field}: ${pct}% confidence"></span>`;
+			}
+			// Badge = colored pill with dot + % number (used in field labels)
+			function confBadge(fc, field) {
+				const pct = fieldConf(fc, field);
+				if (pct == null) return '';
+				return `<span class="conf-badge ${confBadgeClass(pct)}" title="${pct}% AI confidence for ${field}"><span class="conf-dot ${confDotClass(pct)}" style="width:6px;height:6px"></span>${pct}%</span>`;
+			}
+
+			// ── GST Smart Calculator ────────────────────────────────────
+			function round2(v) {
+				return Math.round(v * 100) / 100;
+			}
+
+			function inferGstRate(inv) {
+				// Try from first line item
+				const items = inv.line_items || [];
+				for (const li of items) {
+					if (li.gst_rate != null && li.gst_rate > 0) return li.gst_rate;
+				}
+				// Infer from cgst/taxable
+				if (inv.cgst && inv.taxable_value && inv.taxable_value > 0) {
+					const r = Math.round((inv.cgst / inv.taxable_value) * 200);
+					if ([5, 12, 18, 28].includes(r)) return r;
+				}
+				return 18;
+			}
+
+			function setGstRate(invId, rate) {
+				const inp = document.getElementById(`gst-rate-${invId}`);
+				if (inp) inp.value = rate;
+				[5, 12, 18, 28].forEach((r) => {
+					const btn = document.getElementById(`gst-rate-btn-${invId}-${r}`);
+					if (btn) btn.classList.toggle('rate-active', r == rate);
+				});
+				// Changing the rate should immediately recalculate CGST/SGST/IGST
+				rollupLineItems(invId);
+			}
+
+			function _markCalc(invId, field, on) {
+				const tag = document.getElementById(`calc-tag-${invId}-${field}`);
+				if (tag) {
+					tag.textContent = on ? '≈ auto' : '';
+					tag.className = on ? 'calc-tag' : '';
+				}
+				const inp = document.getElementById(`f_${invId}_${field}`);
+				if (inp) {
+					inp.classList.toggle('calc-glow', on);
+					if (on) setTimeout(() => inp.classList.remove('calc-glow'), 1800);
+				}
+			}
+
+			function _doGstCascade(invId, field) {
+				const g = (f) =>
+					parseFloat(document.getElementById(`f_${invId}_${f}`)?.value) || 0;
+				const s = (f, v) => {
+					const el = document.getElementById(`f_${invId}_${f}`);
+					if (!el) return;
+					el.value = v > 0 ? v.toFixed(2) : '';
+					_markCalc(invId, f, true);
+				};
+
+				const txType =
+					document.getElementById(`f_${invId}_transaction_type`)?.value ||
+					'intrastate';
+				const rate = parseFloat(
+					document.getElementById(`gst-rate-${invId}`)?.value || '18',
+				);
+				const taxable = g('taxable_value');
+
+				if (field === 'taxable_value') {
+					if (txType === 'interstate') {
+						const igst = round2((taxable * rate) / 100);
+						s('cgst', 0);
+						s('sgst', 0);
+						s('igst', igst);
+						s('total_gst', igst);
+					} else {
+						const each = round2((taxable * rate) / 200);
+						s('cgst', each);
+						s('sgst', each);
+						s('igst', 0);
+						s('total_gst', round2(each * 2));
+					}
+					const tg = g('total_gst');
+					s('invoice_total', round2(taxable + tg));
+					s('grand_total', round2(taxable + tg));
+				} else if (field === 'cgst') {
+					const cgst = g('cgst');
+					s('sgst', cgst); // mirror SGST = CGST for intrastate
+					const tg = round2(cgst * 2 + g('igst'));
+					s('total_gst', tg);
+					s('invoice_total', round2(taxable + tg));
+					s('grand_total', round2(taxable + tg));
+				} else if (field === 'sgst' || field === 'igst') {
+					const tg = round2(g('cgst') + g('sgst') + g('igst'));
+					s('total_gst', tg);
+					s('invoice_total', round2(taxable + tg));
+					s('grand_total', round2(taxable + tg));
+				} else if (field === 'total_gst') {
+					const tg = g('total_gst');
+					s('invoice_total', round2(taxable + tg));
+					s('grand_total', round2(taxable + tg));
+				} else if (field === 'invoice_total') {
+					s('grand_total', g('invoice_total'));
+				}
+			}
+
+			function gstCascade(invId, field, el) {
+				const conf = parseInt(el.dataset.conf || '0');
+				// Mark as manually edited so future cascades always fire
+				el.dataset.manualEdit = '1';
+
+				// Remove any pending recalc suggestion
+				const sug = document.getElementById(`recalc-sug-${invId}-${field}`);
+				if (sug) sug.remove();
+
+				if (conf >= 90 || el.dataset.manualEdit === '1') {
+					_doGstCascade(invId, field);
+				} else {
+					// Low confidence — show a "Recalc?" suggestion instead of auto-changing
+					const row = el.closest('.flex');
+					if (row && !document.getElementById(`recalc-sug-${invId}-${field}`)) {
+						const pill = document.createElement('span');
+						pill.id = `recalc-sug-${invId}-${field}`;
+						pill.className = 'recalc-pill';
+						pill.innerHTML = '&#8635; Recalc?';
+						pill.onclick = () => {
+							_doGstCascade(invId, field);
+							pill.remove();
+						};
+						row.appendChild(pill);
+					}
+				}
+			}
+
+			// ── Line item 2-of-3 auto-calc + GST rollup ────────────────
+			// Rule: any 2 of {qty, unit_price, taxable_value} fills the third.
+			// gst_rate change always triggers a rollup of the GST summary.
+			function lineItemCascade(invId, el) {
+				const row = el.closest('tr');
+				if (!row) return;
+
+				const g = (f) => parseFloat(row.querySelector(`[data-field="${f}"]`)?.value) || 0;
+				const raw = (f) => row.querySelector(`[data-field="${f}"]`)?.value?.trim();
+				const s = (f, v) => {
+					const inp = row.querySelector(`[data-field="${f}"]`);
+					if (!inp) return;
+					inp.value = v > 0 ? +v.toFixed(3) : '';
+					// Brief highlight so the CA sees what was auto-filled
+					inp.style.background = '#fff7ed';
+					setTimeout(() => inp.style.background = '', 900);
+				};
+
+				const field = el.dataset.field;
+				const qty     = g('quantity');
+				const price   = g('unit_price');
+				const taxable = g('taxable_value');
+
+				if (field === 'quantity' || field === 'unit_price') {
+					// ① qty + price → taxable
+					if (qty > 0 && price > 0) {
+						s('taxable_value', round2(qty * price));
+					}
+				} else if (field === 'taxable_value') {
+					// ② taxable + qty → price  (price was missing)
+					if (taxable > 0 && qty > 0 && !raw('unit_price')) {
+						s('unit_price', round2(taxable / qty));
+					}
+					// ③ taxable + price → qty  (qty was missing)
+					else if (taxable > 0 && price > 0 && !raw('quantity')) {
+						s('quantity', round2(taxable / price));
+					}
+					// If both qty & price already filled the user manually typed taxable — leave them.
+				}
+				// Always roll up all line items into the GST Summary block
+				rollupLineItems(invId);
+			}
+
+			function rollupLineItems(invId) {
+				const tbody = document.getElementById(`li-body-${invId}`);
+				if (!tbody || !tbody.rows.length) return;
+
+				const txType =
+					document.getElementById(`f_${invId}_transaction_type`)?.value ||
+					'intrastate';
+
+				// Use the invoice-level rate tab (5/12/18/28) — single rate for all rows
+				const invoiceRate = parseFloat(
+					document.getElementById(`gst-rate-${invId}`)?.value || '0'
+				);
+
+				let totTax = 0,
+					totCgst = 0,
+					totSgst = 0,
+					totIgst = 0;
+
+				Array.from(tbody.rows).forEach((row) => {
+					const taxable =
+						parseFloat(
+							row.querySelector('[data-field="taxable_value"]')?.value,
+						) || 0;
+					totTax += taxable;
+					if (taxable > 0 && invoiceRate > 0) {
+						if (txType === 'interstate') {
+							totIgst += round2((taxable * invoiceRate) / 100);
+						} else {
+							const each = round2((taxable * invoiceRate) / 200);
+							totCgst += each;
+							totSgst += each;
+						}
+					}
+				});
+
+				const s = (f, v) => {
+					const el = document.getElementById(`f_${invId}_${f}`);
+					if (!el) return;
+					el.value = v > 0 ? v.toFixed(2) : '';
+					_markCalc(invId, f, true);
+				};
+				const totGst = round2(totCgst + totSgst + totIgst);
+				s('taxable_value', round2(totTax));
+				s('cgst', round2(totCgst));
+				s('sgst', round2(totSgst));
+				s('igst', round2(totIgst));
+				s('total_gst', totGst);
+				s('invoice_total', round2(totTax + totGst));
+				s('grand_total', round2(totTax + totGst));
+			}
+
+			// ── Build invoice card ─────────────────────────────────────
+			function buildInvoiceCard(inv) {
+				const pct = Math.round((inv.combined_confidence || 0) * 100);
+				const ocrPct = Math.round((inv.ocr_confidence || 0) * 100);
+				const aiPct = Math.round((inv.claude_confidence || 0) * 100);
+				const fc = inv.field_confidence || {};
+				const needsR = inv.needs_review;
+				const manual = inv.manual_review_required;
+				const date = inv.invoice_date
+					? new Date(inv.invoice_date + 'T00:00:00').toLocaleDateString(
+							'en-IN',
+							{ day: '2-digit', month: '2-digit', year: 'numeric' },
+						)
+					: '—';
+				const layer = inv.layer_used || '';
+				const layerLabel =
+					{
+						pdfplumber: 'PDF Text',
+						google_docai: 'DocAI',
+						claude_vision: 'AI Vision',
+						excel: 'Excel',
+					}[layer] || layer;
+
+				const borderClass = manual
+					? 'manual-border'
+					: needsR
+						? 'review-border'
+						: 'accepted-border';
+
+				const card = document.createElement('div');
+				card.className = `bg-white rounded-xl border border-slate-200 overflow-hidden fade-in card-shadow ${borderClass}`;
+				card.id = `invoice-card-${inv.id}`;
+
+				card.innerHTML = `
     <!-- HEADER -->
-    <div class="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition" onclick="toggleCard(${inv.id})">
+    <div class="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-[#f8f7f2] transition select-none" onclick="toggleCard(${inv.id}, event)">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 mb-1 flex-wrap">
-          <h3 class="font-semibold ${inv.source_pages&&!inv.vendor_name?'text-red-500 italic':'text-slate-800'}">${inv.vendor_name?esc(inv.vendor_name):inv.source_pages?`⚠ Page ${esc(inv.source_pages)} — Not extracted`:'Unknown Vendor'}</h3>
-          ${manual?`<span id="status-badge-${inv.id}" class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">&#9940; Manual Review</span>`:needsR?`<span id="status-badge-${inv.id}" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">&#9888; Review needed</span>`:`<span id="status-badge-${inv.id}" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">&#10003; Auto accepted</span>`}
-          ${layerLabel?`<span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500 border border-slate-200">${esc(layerLabel)}</span>`:''}
-          ${inv.retry_count>0?`<span class="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-600 border border-orange-200">&#8635; ${inv.retry_count} retries</span>`:''}
+          <h3 class="font-semibold ${inv.source_pages && !inv.vendor_name ? 'text-red-500 italic' : 'text-[#141413]'}">${inv.vendor_name ? esc(inv.vendor_name) : 'Unknown Vendor'}</h3>
+          ${manual ? `<span id="status-badge-${inv.id}" class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">&#9940; Needs Review</span>` : needsR ? `<span id="status-badge-${inv.id}" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">&#9888; Please Check</span>` : `<span id="status-badge-${inv.id}" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">&#10003; Done</span>`}
         </div>
         <div class="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
-          <span>Invoice: <strong class="text-slate-700">${esc(inv.invoice_number)||'—'}</strong></span>
-          <span>Date: <strong class="text-slate-700">${date}</strong></span>
-          <span>Total: <strong class="text-slate-800 text-sm font-bold">&#8377;${fmt(inv.grand_total||inv.invoice_total)}</strong></span>
-          ${inv.transaction_type?`<span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-xs capitalize">${inv.transaction_type}</span>`:''}
+          <span>Invoice: <strong class="text-[#2a2a28]">${esc(inv.invoice_number) || '—'}</strong></span>
+          <span>Date: <strong class="text-[#2a2a28]">${date}</strong></span>
+          <span>Total: <strong class="text-[#141413] text-sm font-bold">&#8377;${fmt(inv.grand_total || inv.invoice_total)}</strong></span>
+          ${inv.transaction_type ? `<span class="px-1.5 py-0.5 bg-slate-100 text-[#3d3d3b] rounded text-xs capitalize">${inv.transaction_type}</span>` : ''}
         </div>
       </div>
       <div class="flex items-center gap-2 ml-3 flex-shrink-0">
-        <div class="flex gap-1">
-          <span class="px-2 py-0.5 rounded-full border text-xs ${confClass(ocrPct)}">OCR ${ocrPct}%</span>
-          <span class="px-2 py-0.5 rounded-full border text-xs ${confClass(aiPct)}">AI ${aiPct}%</span>
-          <span class="px-2 py-0.5 rounded-full border text-xs font-bold ${confClass(pct)}">${pct}%</span>
-        </div>
+        <span class="px-2 py-0.5 rounded-full border text-xs font-semibold ${confClass(pct)}" title="Extraction confidence">${pct}% confidence</span>
         <svg id="chevron-${inv.id}" class="w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
       </div>
     </div>
@@ -770,46 +2039,48 @@ function buildInvoiceCard(inv) {
     <!-- BODY -->
     <div id="card-body-${inv.id}" class="hidden border-t border-slate-100">
 
-      ${manual?`<div class="mx-4 mt-4 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-        <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-        <div><div class="font-bold text-red-700 text-sm mb-0.5">Manual Review Required</div><div class="text-xs text-red-600">Combined confidence (${pct}%) is below 75% threshold after ${inv.retry_count||0} retries. Please verify all fields carefully.</div></div>
-      </div>`:''}
-
-      ${(inv.issues||[]).length?`<div class="mx-4 mt-4 p-3 bg-red-50 rounded-xl border border-red-100"><div class="text-xs font-bold text-red-700 mb-1.5">&#9888; Issues</div>${inv.issues.map(i=>`<div class="text-xs text-red-600 flex items-start gap-1"><span>&bull;</span>${esc(i)}</div>`).join('')}</div>`:''}
+      ${
+				manual
+					? `<div class="mx-4 mt-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        <div><div class="font-semibold text-amber-800 text-sm mb-0.5">Please verify this invoice</div><div class="text-xs text-amber-700">Some fields could not be read clearly. Check the values below and correct anything that looks wrong before saving.</div></div>
+      </div>`
+					: ''
+			}
 
       <!-- INVOICE DOCUMENT LAYOUT -->
       <div class="mx-4 mt-4 border border-slate-200 rounded-xl overflow-hidden">
 
         <!-- Seller / Buyer header -->
-        <div class="grid grid-cols-2 divide-x divide-slate-200 bg-slate-50">
+        <div class="grid grid-cols-2 divide-x divide-slate-200 bg-[#f8f7f2]">
           <div class="p-3">
             <div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Seller / Vendor</div>
             <div class="field-row mb-2">
-              <div class="field-label">${confBadge(fc,'vendor_name')} Vendor Name</div>
-              <input id="f_${inv.id}_vendor_name" type="text" value="${esc(inv.vendor_name||'')}" class="field-input text-sm font-semibold"/>
+              <div class="field-label">${confBadge(fc, 'vendor_name')} Vendor Name</div>
+              <input id="f_${inv.id}_vendor_name" type="text" value="${esc(inv.vendor_name || '')}" class="field-input text-sm font-semibold"/>
             </div>
             <div class="field-row mb-2">
-              <div class="field-label">${confBadge(fc,'vendor_gstin')} GSTIN</div>
-              <input id="f_${inv.id}_vendor_gstin" type="text" value="${esc(inv.vendor_gstin||'')}" class="field-input text-xs font-mono"/>
+              <div class="field-label">${confBadge(fc, 'vendor_gstin')} GSTIN</div>
+              <input id="f_${inv.id}_vendor_gstin" type="text" value="${esc(inv.vendor_gstin || '')}" class="field-input text-xs font-mono"/>
             </div>
             <div class="field-row">
-              <div class="field-label">${confBadge(fc,'vendor_address')} Address</div>
-              <input id="f_${inv.id}_vendor_address" type="text" value="${esc(inv.vendor_address||'')}" class="field-input text-xs"/>
+              <div class="field-label">${confBadge(fc, 'vendor_address')} Address</div>
+              <input id="f_${inv.id}_vendor_address" type="text" value="${esc(inv.vendor_address || '')}" class="field-input text-xs"/>
             </div>
           </div>
           <div class="p-3">
             <div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Buyer / Client</div>
             <div class="field-row mb-2">
-              <div class="field-label">${confBadge(fc,'buyer_name')} Buyer Name</div>
-              <input id="f_${inv.id}_buyer_name" type="text" value="${esc(inv.buyer_name||'')}" class="field-input text-sm font-semibold"/>
+              <div class="field-label">${confBadge(fc, 'buyer_name')} Buyer Name</div>
+              <input id="f_${inv.id}_buyer_name" type="text" value="${esc(inv.buyer_name || '')}" class="field-input text-sm font-semibold"/>
             </div>
             <div class="field-row mb-2">
-              <div class="field-label">${confBadge(fc,'buyer_gstin')} GSTIN</div>
-              <input id="f_${inv.id}_buyer_gstin" type="text" value="${esc(inv.buyer_gstin||'')}" class="field-input text-xs font-mono"/>
+              <div class="field-label">${confBadge(fc, 'buyer_gstin')} GSTIN</div>
+              <input id="f_${inv.id}_buyer_gstin" type="text" value="${esc(inv.buyer_gstin || '')}" class="field-input text-xs font-mono"/>
             </div>
             <div class="field-row">
-              <div class="field-label">${confBadge(fc,'buyer_address')} Address</div>
-              <input id="f_${inv.id}_buyer_address" type="text" value="${esc(inv.buyer_address||'')}" class="field-input text-xs"/>
+              <div class="field-label">${confBadge(fc, 'buyer_address')} Address</div>
+              <input id="f_${inv.id}_buyer_address" type="text" value="${esc(inv.buyer_address || '')}" class="field-input text-xs"/>
             </div>
           </div>
         </div>
@@ -817,48 +2088,50 @@ function buildInvoiceCard(inv) {
         <!-- Invoice meta row -->
         <div class="grid grid-cols-4 divide-x divide-slate-200 border-t border-slate-200 bg-white">
           <div class="p-2.5">
-            <div class="field-label mb-1">${confBadge(fc,'invoice_number')} Invoice No</div>
-            <input id="f_${inv.id}_invoice_number" type="text" value="${esc(inv.invoice_number||'')}" class="field-input text-xs font-mono"/>
+            <div class="field-label mb-1">${confBadge(fc, 'invoice_number')} Invoice No</div>
+            <input id="f_${inv.id}_invoice_number" type="text" value="${esc(inv.invoice_number || '')}" class="field-input text-xs font-mono"/>
           </div>
           <div class="p-2.5">
-            <div class="field-label mb-1">${confBadge(fc,'invoice_date')} Date</div>
-            <input id="f_${inv.id}_invoice_date" type="date" value="${inv.invoice_date||''}" class="field-input text-xs"/>
+            <div class="field-label mb-1">${confBadge(fc, 'invoice_date')} Date</div>
+            <input id="f_${inv.id}_invoice_date" type="date" value="${inv.invoice_date || ''}" class="field-input text-xs"/>
           </div>
           <div class="p-2.5">
-            <div class="field-label mb-1">${confBadge(fc,'place_of_supply')} Place of Supply</div>
-            <input id="f_${inv.id}_place_of_supply" type="text" value="${esc(inv.place_of_supply||'')}" class="field-input text-xs"/>
+            <div class="field-label mb-1">${confBadge(fc, 'place_of_supply')} Place of Supply</div>
+            <input id="f_${inv.id}_place_of_supply" type="text" value="${esc(inv.place_of_supply || '')}" class="field-input text-xs"/>
           </div>
           <div class="p-2.5">
-            <div class="field-label mb-1">${confBadge(fc,'transaction_type')} Transaction Type</div>
-            <select id="f_${inv.id}_transaction_type" class="field-input text-xs" oninput="recalcGST(${inv.id})">
+            <div class="field-label mb-1">${confBadge(fc, 'transaction_type')} Transaction Type</div>
+            <select id="f_${inv.id}_transaction_type" class="field-input text-xs" oninput="rollupLineItems(${inv.id})">
               <option value="">—</option>
-              <option value="intrastate" ${inv.transaction_type==='intrastate'?'selected':''}>Intrastate</option>
-              <option value="interstate" ${inv.transaction_type==='interstate'?'selected':''}>Interstate</option>
+              <option value="intrastate" ${inv.transaction_type === 'intrastate' ? 'selected' : ''}>Intrastate</option>
+              <option value="interstate" ${inv.transaction_type === 'interstate' ? 'selected' : ''}>Interstate</option>
             </select>
           </div>
         </div>
 
         <!-- LINE ITEMS TABLE -->
         <div class="border-t border-slate-200 overflow-x-auto">
-          <div class="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
-            <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Line Items</span>
-            <button onclick="addLineItem(${inv.id})" class="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg hover:bg-indigo-200 font-semibold transition">+ Add Row</button>
+          <div class="flex items-center justify-between px-3 py-2 bg-[#f8f7f2] border-b border-slate-200">
+            <span class="text-xs font-bold text-[#3d3d3b] uppercase tracking-wide">Line Items</span>
+            <button onclick="addLineItem(${inv.id})" class="text-xs bg-brand-500 text-white px-3 py-1.5 rounded-lg hover:bg-brand-600 font-semibold transition flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Add Line Item
+            </button>
           </div>
           <table class="inv-table" id="li-table-${inv.id}">
             <thead>
               <tr>
-                <th style="min-width:160px;text-align:left">#  Description</th>
+                <th style="min-width:160px;text-align:left">Description</th>
                 <th style="min-width:80px">HSN/SAC</th>
                 <th style="min-width:60px">Qty</th>
                 <th style="min-width:50px">Unit</th>
                 <th style="min-width:90px">Unit Price</th>
                 <th style="min-width:90px">Taxable &#8377;</th>
-                <th style="min-width:55px">GST%</th>
                 <th style="min-width:30px"></th>
               </tr>
             </thead>
             <tbody id="li-body-${inv.id}">
-              ${(inv.line_items||[]).map((li,idx)=>lineItemRow(inv.id,idx,li)).join('')}
+              ${(inv.line_items || []).map((li, idx) => lineItemRow(inv.id, idx, li)).join('')}
             </tbody>
           </table>
         </div>
@@ -866,32 +2139,32 @@ function buildInvoiceCard(inv) {
         <!-- GST Summary -->
         <div class="border-t border-slate-200 grid grid-cols-2 divide-x divide-slate-200">
           <div class="p-3">
-            ${inv.back_calculated?`<div class="p-2 bg-blue-50 rounded-lg text-xs text-blue-700 border border-blue-100 mb-2">&#8505; Back-calculated: ${esc(inv.back_calc_note)||'GST derived from total'}</div>`:''}
+            ${inv.back_calculated ? `<div class="p-2 bg-blue-50 rounded-lg text-xs text-blue-700 border border-blue-100 mb-2">&#8505; Back-calculated: ${esc(inv.back_calc_note) || 'GST derived from total'}</div>` : ''}
             <!-- Bank details -->
             <div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Bank Details (from Invoice)</div>
             <div class="grid grid-cols-2 gap-1.5">
               <div class="field-row">
                 <div class="field-label">Account No</div>
-                <input id="f_${inv.id}_bank_account_number" type="text" value="${esc((inv.bank_details||{}).account_number||'')}" class="field-input text-xs font-mono"/>
+                <input id="f_${inv.id}_bank_account_number" type="text" value="${esc((inv.bank_details || {}).account_number || '')}" class="field-input text-xs font-mono"/>
               </div>
               <div class="field-row">
                 <div class="field-label">IFSC Code</div>
-                <input id="f_${inv.id}_bank_ifsc_code" type="text" value="${esc((inv.bank_details||{}).ifsc_code||'')}" class="field-input text-xs font-mono"/>
+                <input id="f_${inv.id}_bank_ifsc_code" type="text" value="${esc((inv.bank_details || {}).ifsc_code || '')}" class="field-input text-xs font-mono"/>
               </div>
               <div class="field-row">
                 <div class="field-label">Bank Name</div>
-                <input id="f_${inv.id}_bank_bank_name" type="text" value="${esc((inv.bank_details||{}).bank_name||'')}" class="field-input text-xs"/>
+                <input id="f_${inv.id}_bank_bank_name" type="text" value="${esc((inv.bank_details || {}).bank_name || '')}" class="field-input text-xs"/>
               </div>
               <div class="field-row">
                 <div class="field-label">Branch</div>
-                <input id="f_${inv.id}_bank_branch" type="text" value="${esc((inv.bank_details||{}).branch||'')}" class="field-input text-xs"/>
+                <input id="f_${inv.id}_bank_branch" type="text" value="${esc((inv.bank_details || {}).branch || '')}" class="field-input text-xs"/>
               </div>
               <div class="field-row col-span-2">
                 <div class="field-label">Account Type</div>
                 <select id="f_${inv.id}_bank_account_type" class="field-input text-xs">
                   <option value="">—</option>
-                  <option value="current" ${(inv.bank_details||{}).account_type==='current'?'selected':''}>Current</option>
-                  <option value="savings" ${(inv.bank_details||{}).account_type==='savings'?'selected':''}>Savings</option>
+                  <option value="current" ${(inv.bank_details || {}).account_type === 'current' ? 'selected' : ''}>Current</option>
+                  <option value="savings" ${(inv.bank_details || {}).account_type === 'savings' ? 'selected' : ''}>Savings</option>
                 </select>
               </div>
             </div>
@@ -902,24 +2175,24 @@ function buildInvoiceCard(inv) {
               <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">GST Summary</div>
               <div class="flex items-center gap-1">
                 <span class="text-slate-400 text-xs">Rate:</span>
-                ${[5,12,18,28].map(r=>`<button id="gst-rate-btn-${inv.id}-${r}" onclick="setGstRate(${inv.id},${r})" class="gst-rate-btn${inferGstRate(inv)==r?' rate-active':''}">${r}%</button>`).join('')}
+                ${[5, 12, 18, 28].map((r) => `<button id="gst-rate-btn-${inv.id}-${r}" onclick="setGstRate(${inv.id},${r})" class="gst-rate-btn${inferGstRate(inv) == r ? ' rate-active' : ''}">${r}%</button>`).join('')}
                 <input id="gst-rate-${inv.id}" type="hidden" value="${inferGstRate(inv)}"/>
               </div>
             </div>
             <!-- Calculator tip -->
             <div class="text-xs text-slate-400 mb-2 flex items-center gap-1">
               <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>
-              Edit Taxable Value — CGST/SGST/totals update automatically
+              Select rate tab above, then edit Taxable Value — CGST/SGST/IGST update automatically
             </div>
             <div class="space-y-1.5">
-              ${gstRow(inv.id,'taxable_value','Taxable Value',inv.taxable_value,fc)}
-              ${gstRow(inv.id,'cgst','CGST',inv.cgst,fc)}
-              ${gstRow(inv.id,'sgst','SGST',inv.sgst,fc)}
-              ${gstRow(inv.id,'igst','IGST',inv.igst,fc)}
-              ${gstRow(inv.id,'total_gst','Total GST',inv.total_gst,fc)}
+              ${gstRow(inv.id, 'taxable_value', 'Taxable Value', inv.taxable_value, fc)}
+              ${gstRow(inv.id, 'cgst', 'CGST', inv.cgst, fc)}
+              ${gstRow(inv.id, 'sgst', 'SGST', inv.sgst, fc)}
+              ${gstRow(inv.id, 'igst', 'IGST', inv.igst, fc)}
+              ${gstRow(inv.id, 'total_gst', 'Total GST', inv.total_gst, fc)}
               <div class="border-t border-slate-200 pt-1.5 mt-1.5">
-                ${gstRow(inv.id,'invoice_total','Invoice Total',inv.invoice_total,fc,true)}
-                ${gstRow(inv.id,'grand_total','Grand Total',inv.grand_total,fc,true)}
+                ${gstRow(inv.id, 'invoice_total', 'Invoice Total', inv.invoice_total, fc, true)}
+                ${gstRow(inv.id, 'grand_total', 'Grand Total', inv.grand_total, fc, true)}
               </div>
             </div>
           </div>
@@ -928,401 +2201,622 @@ function buildInvoiceCard(inv) {
 
       <!-- Actions -->
       <div class="flex items-center gap-2 mx-4 mb-4 mt-3">
-        <button type="button" onclick="saveInvoice(${inv.id})" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-indigo-700 active:scale-[.97] transition">Save edits</button>
-        ${needsR||manual?`<button type="button" id="mark-reviewed-btn-${inv.id}" onclick="markReviewed(${inv.id})" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-emerald-700 active:scale-[.97] transition">&#10003; Mark reviewed</button>`:''}
+        <button type="button" onclick="saveInvoice(${inv.id})" class="bg-brand-500 text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-brand-600 active:scale-[.97] transition">Save edits</button>
+        ${needsR || manual ? `<button type="button" id="mark-reviewed-btn-${inv.id}" onclick="markReviewed(${inv.id})" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-emerald-700 active:scale-[.97] transition">&#10003; Mark reviewed</button>` : ''}
         <span id="save-msg-${inv.id}" class="text-xs text-emerald-600 font-medium hidden">&#10003; Saved</span>
+        <button type="button" onclick="deleteInvoice(${inv.id})" class="ml-auto text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl border border-transparent hover:border-red-200 transition flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Delete invoice
+        </button>
       </div>
     </div>
   `;
-  return card;
-}
+				return card;
+			}
 
-function gstRow(invId, field, label, value, fc, bold=false) {
-  const pct   = fieldConf(fc, field);
-  const badge = pct!=null ? confBadge(fc, field) : '';
-  const conf  = pct != null ? pct : 0;
-  const extraHandler = field === 'taxable_value' ? ` recalcGST(${invId});` : '';
-  return `
+			function gstRow(invId, field, label, value, fc, bold = false) {
+				const pct = fieldConf(fc, field);
+				const badge = pct != null ? confBadge(fc, field) : '';
+				const conf = pct != null ? pct : 0;
+				const extraHandler =
+					field === 'taxable_value' ? ` recalcGST(${invId});` : '';
+				return `
     <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-1.5 text-xs text-slate-500 flex-shrink-0">
         ${badge}<span>${label}</span><span id="calc-tag-${invId}-${field}" class=""></span>
       </div>
-      <input id="f_${invId}_${field}" type="number" step="0.01" value="${value!=null?value:''}" placeholder="0.00"
+      <input id="f_${invId}_${field}" type="number" step="0.01" value="${value != null ? value : ''}" placeholder="0.00"
         data-conf="${conf}" data-field="${field}"
         oninput="gstCascade(${invId}, '${field}', this);${extraHandler}"
-        class="text-right border border-slate-200 rounded-lg px-2 py-1 text-xs ${bold?'font-bold text-slate-800':'text-slate-700'} focus:outline-none focus:ring-1 focus:ring-indigo-400 w-32 transition-colors duration-300"/>
+        class="text-right border border-slate-200 rounded-lg px-2 py-1 text-xs ${bold ? 'font-bold text-[#141413]' : 'text-[#2a2a28]'} focus:outline-none focus:ring-1 focus:ring-brand-400 w-32 transition-colors duration-300"/>
     </div>`;
-}
+			}
 
-function lineItemRow(invId, idx, li={}) {
-  const c=li.line_confidence!=null?Math.round(li.line_confidence*100):null;
-  const dotHtml=c!=null?`<span class="conf-badge ${confBadgeClass(c)}" style="font-size:9px;padding:1px 4px"><span class="conf-dot ${confDotClass(c)}" style="width:5px;height:5px"></span>${c}%</span>`:'';
-  return `<tr id="li-row-${invId}-${idx}">
-    <td style="text-align:left">${dotHtml}<input type="text" value="${esc(li.description||'')}" placeholder="Description" data-field="description"/></td>
-    <td><input type="text" value="${esc(li.hsn_sac||'')}" placeholder="HSN/SAC" data-field="hsn_sac" style="font-family:monospace"/></td>
-    <td><input type="number" value="${li.quantity!=null?li.quantity:''}" placeholder="0" data-field="quantity" step="0.001" oninput="lineItemCascade(${invId},this)"/></td>
-    <td><input type="text" value="${esc(li.unit||'')}" placeholder="Nos" data-field="unit"/></td>
-    <td><input type="number" value="${li.unit_price!=null?li.unit_price:''}" placeholder="0.00" data-field="unit_price" step="0.01" oninput="lineItemCascade(${invId},this)"/></td>
-    <td><input type="number" value="${li.taxable_value!=null?li.taxable_value:''}" placeholder="0.00" data-field="taxable_value" step="0.01" oninput="lineItemCascade(${invId},this)"/></td>
-    <td><input type="number" value="${li.gst_rate!=null?li.gst_rate:''}" placeholder="18" data-field="gst_rate" step="0.01" oninput="lineItemCascade(${invId},this)"/></td>
+			function lineItemRow(invId, idx, li = {}) {
+				const c =
+					li.line_confidence != null
+						? Math.round(li.line_confidence * 100)
+						: null;
+				const dotHtml =
+					c != null
+						? `<span class="conf-badge ${confBadgeClass(c)}" style="font-size:9px;padding:1px 4px"><span class="conf-dot ${confDotClass(c)}" style="width:5px;height:5px"></span>${c}%</span>`
+						: '';
+				return `<tr id="li-row-${invId}-${idx}" style="position:relative">
+    <td style="text-align:left;padding-left:2px">
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="insertLineItemAt(${invId}, this)" title="Insert row above"
+          style="flex-shrink:0;width:18px;height:18px;border-radius:50%;background:#f5ddd0;color:#c4623d;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;opacity:0.5"
+          onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">+</button>
+        <div style="flex:1">${dotHtml}<input type="text" value="${esc(li.description || '')}" placeholder="Description" data-field="description" style="width:100%"/></div>
+      </div>
+    </td>
+    <td><input type="text" value="${esc(li.hsn_sac || '')}" placeholder="HSN/SAC" data-field="hsn_sac" style="font-family:monospace"/></td>
+    <td><input type="number" value="${li.quantity != null ? li.quantity : ''}" placeholder="0" data-field="quantity" step="0.001" oninput="lineItemCascade(${invId},this)"/></td>
+    <td><input type="text" value="${esc(li.unit || '')}" placeholder="Nos" data-field="unit"/></td>
+    <td><input type="number" value="${li.unit_price != null ? li.unit_price : ''}" placeholder="0.00" data-field="unit_price" step="0.01" oninput="lineItemCascade(${invId},this)"/></td>
+    <td><input type="number" value="${li.taxable_value != null ? li.taxable_value : ''}" placeholder="0.00" data-field="taxable_value" step="0.01" oninput="lineItemCascade(${invId},this)"/></td>
     <td><button onclick="removeLineItem(${invId},${idx})" class="text-red-400 hover:text-red-600 text-lg leading-none font-bold px-1" title="Remove">&times;</button></td>
   </tr>`;
-}
+			}
 
-function addLineItem(invId) {
-  const tbody = document.getElementById(`li-body-${invId}`);
-  const idx   = tbody.children.length;
-  tbody.insertAdjacentHTML('beforeend', lineItemRow(invId, idx));
-}
+			// Append a blank row at the end
+			function addLineItem(invId) {
+				const tbody = document.getElementById(`li-body-${invId}`);
+				const idx = tbody.children.length;
+				tbody.insertAdjacentHTML('beforeend', lineItemRow(invId, idx));
+			}
 
-function removeLineItem(invId, idx) {
-  const row = document.getElementById(`li-row-${invId}-${idx}`);
-  if (row) { row.remove(); rollupLineItems(invId); }
-}
+			// Insert a blank row BELOW the row whose + button was clicked
+			function insertLineItemAt(invId, btn) {
+				const tbody = document.getElementById(`li-body-${invId}`);
+				const currentRow = btn.closest('tr');
+				const rows = Array.from(tbody.children);
+				const pos = rows.indexOf(currentRow);
+				const newRowHtml = lineItemRow(invId, pos + 1);
+				currentRow.insertAdjacentHTML('afterend', newRowHtml);
+				// Focus the description field of the newly inserted row
+				const newRow = currentRow.nextElementSibling;
+				if (newRow) newRow.querySelector('input[data-field="description"]')?.focus();
+			}
 
-function collectLineItems(invId) {
-  const tbody = document.getElementById(`li-body-${invId}`);
-  if (!tbody) return [];
-  return Array.from(tbody.rows).map(row => {
-    const item = {};
-    row.querySelectorAll('input[data-field]').forEach(inp => {
-      const f = inp.dataset.field;
-      const v = inp.value.trim();
-      if (['quantity','unit_price','taxable_value','gst_rate'].includes(f)) {
-        item[f] = v===''?null:parseFloat(v);
-      } else {
-        item[f] = v||null;
-      }
-    });
-    return item;
-  }).filter(item => item.description||item.taxable_value!=null);
-}
+			function removeLineItem(invId, idx) {
+				const row = document.getElementById(`li-row-${invId}-${idx}`);
+				if (row) {
+					row.remove();
+					rollupLineItems(invId);
+				}
+			}
 
-function toggleCard(id) {
-  const body=document.getElementById(`card-body-${id}`);
-  const chevron=document.getElementById(`chevron-${id}`);
-  const hidden=body.classList.toggle('hidden');
-  chevron.style.transform=hidden?'':'rotate(180deg)';
-}
+			function collectLineItems(invId) {
+				const tbody = document.getElementById(`li-body-${invId}`);
+				if (!tbody) return [];
+				// Stamp the invoice-level GST rate onto every row before collecting
+				const invoiceRate = parseFloat(
+					document.getElementById(`gst-rate-${invId}`)?.value || '0'
+				) || null;
+				return Array.from(tbody.rows)
+					.map((row) => {
+						const item = {};
+						row.querySelectorAll('input[data-field]').forEach((inp) => {
+							const f = inp.dataset.field;
+							const v = inp.value.trim();
+							if (['quantity', 'unit_price', 'taxable_value'].includes(f)) {
+								item[f] = v === '' ? null : parseFloat(v);
+							} else {
+								item[f] = v || null;
+							}
+						});
+						// Always carry the invoice-level rate as gst_rate for the backend
+						item.gst_rate = invoiceRate;
+						return item;
+					})
+					.filter((item) => item.description || item.taxable_value != null);
+			}
 
-function esc(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+			// Track pointer-down position so we don't collapse cards during scroll (pointer drifts)
+			let _cardPointerDownY = 0;
+			document.addEventListener('pointerdown', e => { _cardPointerDownY = e.clientY; }, { passive: true });
 
-async function saveInvoice(id) {
-  recalcGST(id);  // ensure GST fields are correct before saving
-  const fields=['vendor_name','vendor_gstin','vendor_address','buyer_name','buyer_gstin','buyer_address',
-    'invoice_number','invoice_date','place_of_supply',
-    'taxable_value','cgst','sgst','igst','total_gst','invoice_total','grand_total','transaction_type'];
-  const payload={};
-  const numFields=['taxable_value','cgst','sgst','igst','total_gst','invoice_total','grand_total'];
-  fields.forEach(f=>{
-    const el=document.getElementById(`f_${id}_${f}`);
-    if (!el) return;
-    let v=el.value;
-    if (numFields.includes(f)) v=v===''?null:parseFloat(v);
-    if (v!=='') payload[f]=v;
-  });
+			function toggleCard(id, event) {
+				// If pointer moved > 6px between pointerdown and click, user was scrolling — ignore
+				if (event && Math.abs(event.clientY - _cardPointerDownY) > 6) return;
+				const body = document.getElementById(`card-body-${id}`);
+				const chevron = document.getElementById(`chevron-${id}`);
+				const hidden = body.classList.toggle('hidden');
+				chevron.style.transform = hidden ? '' : 'rotate(180deg)';
+			}
 
-  // Collect line items
-  payload.line_items=collectLineItems(id);
+			function esc(s) {
+				if (!s) return '';
+				return String(s)
+					.replace(/&/g, '&amp;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;')
+					.replace(/"/g, '&quot;');
+			}
 
-  // Collect bank details
-  const bankFields=['account_number','ifsc_code','bank_name','branch','account_type'];
-  const bd={};
-  bankFields.forEach(f=>{
-    const el=document.getElementById(`f_${id}_bank_${f}`);
-    if (el) bd[f]=el.value.trim()||null;
-  });
-  payload.bank_details=bd;
+			async function saveInvoice(id) {
+				recalcGST(id); // ensure GST fields are correct before saving
+				const fields = [
+					'vendor_name',
+					'vendor_gstin',
+					'vendor_address',
+					'buyer_name',
+					'buyer_gstin',
+					'buyer_address',
+					'invoice_number',
+					'invoice_date',
+					'place_of_supply',
+					'taxable_value',
+					'cgst',
+					'sgst',
+					'igst',
+					'total_gst',
+					'invoice_total',
+					'grand_total',
+					'transaction_type',
+				];
+				const payload = {};
+				const numFields = [
+					'taxable_value',
+					'cgst',
+					'sgst',
+					'igst',
+					'total_gst',
+					'invoice_total',
+					'grand_total',
+				];
+				fields.forEach((f) => {
+					const el = document.getElementById(`f_${id}_${f}`);
+					if (!el) return;
+					let v = el.value;
+					if (numFields.includes(f)) v = v === '' ? null : parseFloat(v);
+					if (v !== '') payload[f] = v;
+				});
 
-  const res=await api(`/extract/invoice/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  if (!res) return;
-  const msg=document.getElementById(`save-msg-${id}`);
-  msg.classList.remove('hidden');
-  setTimeout(()=>msg.classList.add('hidden'),3000);
-  showToast('Changes saved','success');
-}
+				// Collect line items
+				payload.line_items = collectLineItems(id);
 
-function recalcGST(invId) {
-  // Read current taxable value
-  const tvEl = document.getElementById(`f_${invId}_taxable_value`);
-  if (!tvEl) return;
-  const tv = parseFloat(tvEl.value) || 0;
+				// Collect bank details
+				const bankFields = [
+					'account_number',
+					'ifsc_code',
+					'bank_name',
+					'branch',
+					'account_type',
+				];
+				const bd = {};
+				bankFields.forEach((f) => {
+					const el = document.getElementById(`f_${id}_bank_${f}`);
+					if (el) bd[f] = el.value.trim() || null;
+				});
+				payload.bank_details = bd;
 
-  // Detect GST rate from line items (use first line item's gst_rate, or fall back to existing amounts)
-  let gstRate = 0;
-  const rateEl = document.querySelector(`[id^="f_${invId}_li_"][id$="_gst_rate"]`);
-  if (rateEl) gstRate = parseFloat(rateEl.value) || 0;
+				const res = await api(`/extract/invoice/${id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload),
+				});
+				if (!res) return;
+				const msg = document.getElementById(`save-msg-${id}`);
+				msg.classList.remove('hidden');
+				setTimeout(() => msg.classList.add('hidden'), 3000);
+				showToast('Changes saved', 'success');
+			}
 
-  // Fall back: infer from existing CGST+SGST vs taxable_value
-  if (!gstRate && tv > 0) {
-    const existCgst = parseFloat(document.getElementById(`f_${invId}_cgst`)?.value) || 0;
-    const existSgst = parseFloat(document.getElementById(`f_${invId}_sgst`)?.value) || 0;
-    const existIgst = parseFloat(document.getElementById(`f_${invId}_igst`)?.value) || 0;
-    const existTotal = existCgst + existSgst + existIgst;
-    if (existTotal > 0) gstRate = Math.round((existTotal / tv) * 100);
-  }
+			function recalcGST(invId) {
+				// Read current taxable value
+				const tvEl = document.getElementById(`f_${invId}_taxable_value`);
+				if (!tvEl) return;
+				const tv = parseFloat(tvEl.value) || 0;
 
-  if (!gstRate || !tv) return;
+				// Use the invoice-level rate tab; fall back to inferring from existing amounts
+				let gstRate = parseFloat(
+					document.getElementById(`gst-rate-${invId}`)?.value || '0'
+				) || 0;
 
-  // Determine transaction type (intrastate = CGST+SGST, interstate = IGST)
-  const txTypeEl = document.getElementById(`f_${invId}_transaction_type`);
-  const isInter = txTypeEl && txTypeEl.value === 'interstate';
+				// Fall back: infer from existing CGST+SGST vs taxable_value
+				if (!gstRate && tv > 0) {
+					const existCgst =
+						parseFloat(document.getElementById(`f_${invId}_cgst`)?.value) || 0;
+					const existSgst =
+						parseFloat(document.getElementById(`f_${invId}_sgst`)?.value) || 0;
+					const existIgst =
+						parseFloat(document.getElementById(`f_${invId}_igst`)?.value) || 0;
+					const existTotal = existCgst + existSgst + existIgst;
+					if (existTotal > 0) gstRate = Math.round((existTotal / tv) * 100);
+				}
 
-  const totalGst = Math.round(tv * gstRate) / 100;
-  const half     = Math.round(totalGst * 50) / 100;  // round to 2dp
+				if (!gstRate || !tv) return;
 
-  const cgstEl   = document.getElementById(`f_${invId}_cgst`);
-  const sgstEl   = document.getElementById(`f_${invId}_sgst`);
-  const igstEl   = document.getElementById(`f_${invId}_igst`);
-  const tgstEl   = document.getElementById(`f_${invId}_total_gst`);
-  const itotalEl = document.getElementById(`f_${invId}_invoice_total`);
-  const gtotalEl = document.getElementById(`f_${invId}_grand_total`);
+				// Determine transaction type (intrastate = CGST+SGST, interstate = IGST)
+				const txTypeEl = document.getElementById(`f_${invId}_transaction_type`);
+				const isInter = txTypeEl && txTypeEl.value === 'interstate';
 
-  if (isInter) {
-    if (cgstEl) cgstEl.value = '';
-    if (sgstEl) sgstEl.value = '';
-    if (igstEl) igstEl.value = totalGst.toFixed(2);
-  } else {
-    if (cgstEl) cgstEl.value = half.toFixed(2);
-    if (sgstEl) sgstEl.value = half.toFixed(2);
-    if (igstEl) igstEl.value = '';
-  }
-  if (tgstEl)   tgstEl.value   = totalGst.toFixed(2);
-  const invoiceTotal = Math.round((tv + totalGst) * 100) / 100;
-  if (itotalEl) itotalEl.value = invoiceTotal.toFixed(2);
-  if (gtotalEl && (!gtotalEl.value || parseFloat(gtotalEl.value) === 0)) {
-    gtotalEl.value = invoiceTotal.toFixed(2);
-  }
+				const totalGst = Math.round(tv * gstRate) / 100;
+				const half = Math.round(totalGst * 50) / 100; // round to 2dp
 
-  // Visual flash to show it recalculated
-  [cgstEl, sgstEl, igstEl, tgstEl, itotalEl].forEach(el => {
-    if (!el) return;
-    el.classList.add('calc-glow');
-    setTimeout(() => el.classList.remove('calc-glow'), 1500);
-  });
-}
+				const cgstEl = document.getElementById(`f_${invId}_cgst`);
+				const sgstEl = document.getElementById(`f_${invId}_sgst`);
+				const igstEl = document.getElementById(`f_${invId}_igst`);
+				const tgstEl = document.getElementById(`f_${invId}_total_gst`);
+				const itotalEl = document.getElementById(`f_${invId}_invoice_total`);
+				const gtotalEl = document.getElementById(`f_${invId}_grand_total`);
 
-async function markReviewed(id) {
-  await saveInvoice(id);
-  await api(`/extract/invoice/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})});
-  showToast('Invoice marked as reviewed ✓','success');
+				if (isInter) {
+					if (cgstEl) cgstEl.value = '';
+					if (sgstEl) sgstEl.value = '';
+					if (igstEl) igstEl.value = totalGst.toFixed(2);
+				} else {
+					if (cgstEl) cgstEl.value = half.toFixed(2);
+					if (sgstEl) sgstEl.value = half.toFixed(2);
+					if (igstEl) igstEl.value = '';
+				}
+				if (tgstEl) tgstEl.value = totalGst.toFixed(2);
+				const invoiceTotal = Math.round((tv + totalGst) * 100) / 100;
+				if (itotalEl) itotalEl.value = invoiceTotal.toFixed(2);
+				if (gtotalEl && (!gtotalEl.value || parseFloat(gtotalEl.value) === 0)) {
+					gtotalEl.value = invoiceTotal.toFixed(2);
+				}
 
-  // Update card in-place — NO page reload
-  // 1. Swap the review/manual badge → green "✓ Reviewed"
-  const badge = document.getElementById(`status-badge-${id}`);
-  if (badge) {
-    badge.textContent = '✓ Reviewed';
-    badge.className = 'px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200';
-  }
-  // 2. Hide the "Mark reviewed" button (already done)
-  const btn = document.getElementById(`mark-reviewed-btn-${id}`);
-  if (btn) btn.classList.add('hidden');
-  // 3. Update the card's left border colour to green (accepted)
-  const card = document.getElementById(`invoice-card-${id}`);
-  if (card) {
-    card.classList.remove('review-border','manual-border');
-    card.classList.add('accepted-border');
-  }
-}
+				// Visual flash to show it recalculated
+				[cgstEl, sgstEl, igstEl, tgstEl, itotalEl].forEach((el) => {
+					if (!el) return;
+					el.classList.add('calc-glow');
+					setTimeout(() => el.classList.remove('calc-glow'), 1500);
+				});
+			}
 
-function setTallyVersion(ver) {
-  document.getElementById('tally-version-val').value = ver;
-  const isPrime = ver === 'prime';
-  const btnPrime = document.getElementById('tally-ver-prime');
-  const btnErp9  = document.getElementById('tally-ver-erp9');
-  if (btnPrime) { btnPrime.classList.toggle('bg-blue-100', isPrime);  btnPrime.classList.toggle('text-blue-700', isPrime);  btnPrime.classList.toggle('font-bold', isPrime); }
-  if (btnErp9)  { btnErp9.classList.toggle('bg-blue-100', !isPrime); btnErp9.classList.toggle('text-blue-700', !isPrime); btnErp9.classList.toggle('font-bold', !isPrime); }
-}
+			async function deleteInvoice(id) {
+				if (!confirm('Delete this invoice? This cannot be undone.')) return;
+				try {
+					await api(`/extract/invoice/${id}`, { method: 'DELETE' });
+					// Remove the card from the DOM instantly
+					const card = document.getElementById(`invoice-card-${id}`);
+					if (card) card.remove();
+					showToast('Invoice deleted', 'success');
+				} catch (e) {
+					showToast('Could not delete invoice — please try again', 'error');
+				}
+			}
 
-async function exportFile(type) {
-  if (!currentInvoiceIds.length) return showToast('No invoices to export','warn');
-  const body = { invoice_ids: currentInvoiceIds };
-  if (type === 'tally') {
-    body.tally_version = document.getElementById('tally-version-val')?.value || 'prime';
-  }
-  const res=await api(`/export/${type}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if (!res||!res.ok) return showToast('Export failed','error');
-  const ver = type === 'tally' ? `_${body.tally_version||'prime'}` : '';
-  downloadBlob(await res.blob(),`complai_${type}${ver}_${Date.now()}.${type==='tally'?'xml':'xlsx'}`);
-}
+			async function markReviewed(id) {
+				await saveInvoice(id);
+				await api(`/extract/invoice/${id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ status: 'approved' }),
+				});
+				showToast('Invoice marked as reviewed ✓', 'success');
 
-async function exportBank() {
-  if (!bankClientId||!bankMonthYear) return showToast('No bank data','warn');
-  const res=await api('/export/bank',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_id:parseInt(bankClientId),month_year:bankMonthYear})});
-  if (!res||!res.ok) return showToast('Export failed','error');
-  downloadBlob(await res.blob(),`complai_bank_${bankMonthYear}.xlsx`);
-}
+				// Update card in-place — NO page reload
+				// 1. Swap the review/manual badge → green "✓ Reviewed"
+				const badge = document.getElementById(`status-badge-${id}`);
+				if (badge) {
+					badge.textContent = '✓ Reviewed';
+					badge.className =
+						'px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200';
+				}
+				// 2. Hide the "Mark reviewed" button (already done)
+				const btn = document.getElementById(`mark-reviewed-btn-${id}`);
+				if (btn) btn.classList.add('hidden');
+				// 3. Update the card's left border colour to green (accepted)
+				const card = document.getElementById(`invoice-card-${id}`);
+				if (card) {
+					card.classList.remove('review-border', 'manual-border');
+					card.classList.add('accepted-border');
+				}
+			}
 
-function downloadBlob(blob,name) { const u=URL.createObjectURL(blob),a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
+			function setTallyVersion(ver) {
+				document.getElementById('tally-version-val').value = ver;
+				const isPrime = ver === 'prime';
+				const btnPrime = document.getElementById('tally-ver-prime');
+				const btnErp9 = document.getElementById('tally-ver-erp9');
+				if (btnPrime) {
+					btnPrime.classList.toggle('bg-blue-100', isPrime);
+					btnPrime.classList.toggle('text-blue-700', isPrime);
+					btnPrime.classList.toggle('font-bold', isPrime);
+				}
+				if (btnErp9) {
+					btnErp9.classList.toggle('bg-blue-100', !isPrime);
+					btnErp9.classList.toggle('text-blue-700', !isPrime);
+					btnErp9.classList.toggle('font-bold', !isPrime);
+				}
+			}
 
-// Mode colour chips for UPI/NEFT/RTGS/IMPS/CHQ etc.
-const MODE_COLOURS = {
-  UPI:   'bg-violet-100 text-violet-700',
-  NEFT:  'bg-blue-100 text-blue-700',
-  RTGS:  'bg-indigo-100 text-indigo-700',
-  IMPS:  'bg-cyan-100 text-cyan-700',
-  CHQ:   'bg-amber-100 text-amber-700',
-  ATM:   'bg-orange-100 text-orange-700',
-  CASH:  'bg-green-100 text-green-700',
-  ECS:   'bg-pink-100 text-pink-700',
-  NACH:  'bg-rose-100 text-rose-700',
-  INT:   'bg-slate-100 text-slate-600',
-};
+			async function exportFile(type) {
+				if (!currentInvoiceIds.length)
+					return showToast('No invoices to export', 'warn');
+				const body = { invoice_ids: currentInvoiceIds };
+				if (type === 'tally') {
+					body.tally_version =
+						document.getElementById('tally-version-val')?.value || 'prime';
+				}
+				const res = await api(`/export/${type}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body),
+				});
+				if (!res || !res.ok) return showToast('Export failed', 'error');
+				const ver = type === 'tally' ? `_${body.tally_version || 'prime'}` : '';
+				downloadBlob(
+					await res.blob(),
+					`complai_${type}${ver}_${Date.now()}.${type === 'tally' ? 'xml' : 'xlsx'}`,
+				);
+			}
 
-async function loadBankResults(jobId) {
-  const res=await api(`/bank/result/${jobId}`);
-  if (!res || !res.ok) { showToast('Could not load bank statement results','error'); return; }
-  let data;
-  try { data = await res.json(); } catch(e) { showToast('Invalid response from server','error'); return; }
-  if (!data || !Array.isArray(data.transactions)) { showToast('No transaction data returned','warn'); return; }
-  const meta = data.statement_meta || {};
+			async function exportBank() {
+				if (!bankClientId || !bankMonthYear)
+					return showToast('No bank data', 'warn');
+				const res = await api('/export/bank', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						client_id: parseInt(bankClientId),
+						month_year: bankMonthYear,
+					}),
+				});
+				if (!res || !res.ok) return showToast('Export failed', 'error');
+				downloadBlob(await res.blob(), `complai_bank_${bankMonthYear}.xlsx`);
+			}
 
-  // helper: YYYY-MM-DD → DD-MM-YYYY
-  const isoToDisplay = v => v ? v.split('-').reverse().join('-') : '—';
-  const fmtBal = v => v != null ? fmtBankBal(v) : '—';
+			function downloadBlob(blob, name) {
+				const u = URL.createObjectURL(blob),
+					a = document.createElement('a');
+				a.href = u;
+				a.download = name;
+				a.click();
+				URL.revokeObjectURL(u);
+			}
 
-  // ── Header: bank name bar ─────────────────────────────────────────────────
-  document.getElementById('stmt-bank-name').textContent = meta.bank_name || 'Bank Statement';
+			// Mode colour chips for UPI/NEFT/RTGS/IMPS/CHQ etc.
+			const MODE_COLOURS = {
+				UPI: 'bg-violet-100 text-violet-700',
+				NEFT: 'bg-blue-100 text-blue-700',
+				RTGS: 'bg-brand-100 text-brand-600',
+				IMPS: 'bg-cyan-100 text-cyan-700',
+				CHQ: 'bg-amber-100 text-amber-700',
+				ATM: 'bg-orange-100 text-orange-700',
+				CASH: 'bg-green-100 text-green-700',
+				ECS: 'bg-pink-100 text-pink-700',
+				NACH: 'bg-rose-100 text-rose-700',
+				INT: 'bg-slate-100 text-[#3d3d3b]',
+			};
 
-  // Balance validation badge in header bar
-  const badge = document.getElementById('bank-balance-badge');
-  if (meta.balance_matches === true) {
-    badge.textContent='✓ Balanced'; badge.className='text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-400 text-white';
-    badge.classList.remove('hidden');
-  } else if (meta.balance_matches === false) {
-    badge.textContent='⚠ Balance Mismatch'; badge.className='text-xs font-semibold px-2.5 py-1 rounded-full bg-red-400 text-white';
-    badge.classList.remove('hidden');
-  }
+			async function loadBankResults(jobId) {
+				const res = await api(`/bank/result/${jobId}`);
+				if (!res || !res.ok) {
+					showToast('Could not load bank statement results', 'error');
+					return;
+				}
+				let data;
+				try {
+					data = await res.json();
+				} catch (e) {
+					showToast('Invalid response from server', 'error');
+					return;
+				}
+				if (!data || !Array.isArray(data.transactions)) {
+					showToast('No transaction data returned', 'warn');
+					return;
+				}
+				const meta = data.statement_meta || {};
 
-  // ── Header: account details ───────────────────────────────────────────────
-  document.getElementById('stmt-holder').textContent  = meta.account_holder || '—';
-  document.getElementById('stmt-accno').textContent   = meta.account_number  || '—';
-  document.getElementById('stmt-ifsc').textContent    = meta.ifsc_code       || '—';
-  document.getElementById('stmt-period').textContent  =
-    (meta.period_from || meta.period_to)
-      ? `${isoToDisplay(meta.period_from)}  to  ${isoToDisplay(meta.period_to)}`
-      : '—';
-  document.getElementById('stmt-opening').textContent = fmtBal(meta.opening_balance);
-  document.getElementById('stmt-closing').textContent = fmtBal(meta.closing_balance);
+				// helper: YYYY-MM-DD → DD-MM-YYYY
+				const isoToDisplay = (v) =>
+					v ? v.split('-').reverse().join('-') : '—';
+				const fmtBal = (v) => (v != null ? fmtBankBal(v) : '—');
 
-  // ── Summary bar ───────────────────────────────────────────────────────────
-  document.getElementById('bank-debits').textContent  = fmtBankAmt(data.total_debits);
-  document.getElementById('bank-credits').textContent = fmtBankAmt(data.total_credits);
-  document.getElementById('bank-count').textContent   = data.transaction_count;
-  document.getElementById('bank-export-btn').classList.remove('hidden');
+				// ── Header: bank name bar ─────────────────────────────────────────────────
+				document.getElementById('stmt-bank-name').textContent =
+					meta.bank_name || 'Bank Statement';
 
-  // ── Statement heading ─────────────────────────────────────────────────────
-  const headPeriod = (meta.period_from||meta.period_to)
-    ? ` for the period from ${isoToDisplay(meta.period_from)} to ${isoToDisplay(meta.period_to)}`
-    : '';
-  document.getElementById('stmt-heading').textContent =
-    `Statement of Account${headPeriod}`;
+				// Balance validation badge in header bar
+				const badge = document.getElementById('bank-balance-badge');
+				if (meta.balance_matches === true) {
+					badge.textContent = '✓ Balanced';
+					badge.className =
+						'text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-400 text-white';
+					badge.classList.remove('hidden');
+				} else if (meta.balance_matches === false) {
+					badge.textContent = '⚠ Balance Mismatch';
+					badge.className =
+						'text-xs font-semibold px-2.5 py-1 rounded-full bg-red-400 text-white';
+					badge.classList.remove('hidden');
+				}
 
-  // ── Footer totals row ─────────────────────────────────────────────────────
-  document.getElementById('foot-withdrawals').textContent = fmtBankAmt(data.total_debits)  || '';
-  document.getElementById('foot-deposits').textContent    = fmtBankAmt(data.total_credits) || '';
-  // closing balance as the final running balance
-  document.getElementById('foot-balance').textContent     = fmtBal(meta.closing_balance);
+				// ── Header: account details ───────────────────────────────────────────────
+				document.getElementById('stmt-holder').textContent =
+					meta.account_holder || '—';
+				document.getElementById('stmt-accno').textContent =
+					meta.account_number || '—';
+				document.getElementById('stmt-ifsc').textContent =
+					meta.ifsc_code || '—';
+				document.getElementById('stmt-period').textContent =
+					meta.period_from || meta.period_to
+						? `${isoToDisplay(meta.period_from)}  to  ${isoToDisplay(meta.period_to)}`
+						: '—';
+				document.getElementById('stmt-opening').textContent = fmtBal(
+					meta.opening_balance,
+				);
+				document.getElementById('stmt-closing').textContent = fmtBal(
+					meta.closing_balance,
+				);
 
-  // ── Transaction rows ──────────────────────────────────────────────────────
-  const tbody=document.getElementById('bank-table-body'); tbody.innerHTML='';
-  data.transactions.forEach(tx=>{
-    const unmatched = !tx.matched_ledger;
-    const row = document.createElement('tr');
-    row.className = `hover:bg-blue-50/30 transition-colors ${unmatched?'':''}`;
+				// ── Summary bar ───────────────────────────────────────────────────────────
+				document.getElementById('bank-debits').textContent = fmtBankAmt(
+					data.total_debits,
+				);
+				document.getElementById('bank-credits').textContent = fmtBankAmt(
+					data.total_credits,
+				);
+				document.getElementById('bank-count').textContent =
+					data.transaction_count;
+				document.getElementById('bank-export-btn').classList.remove('hidden');
 
-    // Mode badge inline in Particulars
-    const modeBadge = tx.mode
-      ? `<span class="ml-1.5 inline-block align-middle px-1 py-0 rounded text-[9px] font-bold tracking-wide ${MODE_COLOURS[tx.mode]||'bg-slate-100 text-slate-500'}">${esc(tx.mode)}</span>`
-      : '';
+				// ── Statement heading ─────────────────────────────────────────────────────
+				const headPeriod =
+					meta.period_from || meta.period_to
+						? ` for the period from ${isoToDisplay(meta.period_from)} to ${isoToDisplay(meta.period_to)}`
+						: '';
+				document.getElementById('stmt-heading').textContent =
+					`Statement of Account${headPeriod}`;
 
-    row.innerHTML=`
-      <td class="px-4 py-2 text-slate-700 whitespace-nowrap font-mono">${fmtBankDate(tx.transaction_date)}</td>
-      <td class="px-4 py-2 text-slate-800" style="min-width:220px;max-width:340px">
-        <span title="${esc(tx.narration||'')}">${esc(tx.narration)||'—'}</span>${modeBadge}
+				// ── Footer totals row ─────────────────────────────────────────────────────
+				document.getElementById('foot-withdrawals').textContent =
+					fmtBankAmt(data.total_debits) || '';
+				document.getElementById('foot-deposits').textContent =
+					fmtBankAmt(data.total_credits) || '';
+				// closing balance as the final running balance
+				document.getElementById('foot-balance').textContent = fmtBal(
+					meta.closing_balance,
+				);
+
+				// ── Transaction rows ──────────────────────────────────────────────────────
+				const tbody = document.getElementById('bank-table-body');
+				tbody.innerHTML = '';
+				data.transactions.forEach((tx) => {
+					const unmatched = !tx.matched_ledger;
+					const row = document.createElement('tr');
+					row.className = `hover:bg-blue-50/30 transition-colors ${unmatched ? '' : ''}`;
+
+					// Mode badge inline in Particulars
+					const modeBadge = tx.mode
+						? `<span class="ml-1.5 inline-block align-middle px-1 py-0 rounded text-[9px] font-bold tracking-wide ${MODE_COLOURS[tx.mode] || 'bg-slate-100 text-slate-500'}">${esc(tx.mode)}</span>`
+						: '';
+
+					row.innerHTML = `
+      <td class="px-4 py-2 text-[#2a2a28] whitespace-nowrap font-mono">${fmtBankDate(tx.transaction_date)}</td>
+      <td class="px-4 py-2 text-[#141413]" style="min-width:220px;max-width:340px">
+        <span title="${esc(tx.narration || '')}">${esc(tx.narration) || '—'}</span>${modeBadge}
       </td>
-      <td class="px-4 py-2 text-slate-500 font-mono whitespace-nowrap">${esc(tx.reference||'')}</td>
+      <td class="px-4 py-2 text-slate-500 font-mono whitespace-nowrap">${esc(tx.reference || '')}</td>
       <td class="px-4 py-2 text-right text-red-600 font-mono whitespace-nowrap">${fmtBankAmt(tx.debit)}</td>
       <td class="px-4 py-2 text-right text-emerald-700 font-mono whitespace-nowrap">${fmtBankAmt(tx.credit)}</td>
-      <td class="px-4 py-2 text-right text-slate-700 font-mono whitespace-nowrap font-medium">${fmtBankBal(tx.balance)}</td>
+      <td class="px-4 py-2 text-right text-[#2a2a28] font-mono whitespace-nowrap font-medium">${fmtBankBal(tx.balance)}</td>
       <td class="px-4 py-2 border-l border-slate-100">
         <div class="flex items-center gap-1.5">
-          <input id="ledger-${tx.id}" type="text" value="${esc(tx.matched_ledger||'')}"
-            placeholder="${unmatched?'e.g. XYZ Suppliers':''}"
-            class="flex-1 min-w-[120px] border rounded px-1.5 py-0.5 text-[11px] ${unmatched?'border-slate-200 bg-white placeholder-slate-300':'border-transparent bg-transparent text-slate-600'} focus:border-indigo-300 focus:bg-white outline-none transition"
+          <input id="ledger-${tx.id}" type="text" value="${esc(tx.matched_ledger || '')}"
+            placeholder="${unmatched ? 'e.g. XYZ Suppliers' : ''}"
+            class="flex-1 min-w-[120px] border rounded px-1.5 py-0.5 text-[11px] ${unmatched ? 'border-slate-200 bg-white placeholder-slate-300' : 'border-transparent bg-transparent text-[#3d3d3b]'} focus:border-brand-300 focus:bg-white outline-none transition"
             title="Enter vendor/party name for Tally export"/>
           <button onclick="confirmMatch(${tx.id})"
             class="shrink-0 text-[10px] px-2 py-0.5 rounded font-semibold whitespace-nowrap
-            ${tx.match_confirmed?'text-emerald-600':'text-indigo-600 hover:bg-indigo-50'}">
-            ${tx.match_confirmed?'✓':'Save'}
+            ${tx.match_confirmed ? 'text-emerald-600' : 'text-brand-500 hover:bg-brand-50'}">
+            ${tx.match_confirmed ? '✓' : 'Save'}
           </button>
         </div>
       </td>`;
-    tbody.appendChild(row);
-  });
+					tbody.appendChild(row);
+				});
 
-  // Show the statement document
-  document.getElementById('bank-statement-doc').classList.remove('hidden');
+				// Show the statement document
+				document
+					.getElementById('bank-statement-doc')
+					.classList.remove('hidden');
 
-  // Empty state
-  if (!data.transactions.length) {
-    document.getElementById('bank-table-body').innerHTML =
-      `<tr><td colspan="7" class="px-6 py-10 text-center text-slate-400 text-sm">
+				// Empty state
+				if (!data.transactions.length) {
+					document.getElementById('bank-table-body').innerHTML =
+						`<tr><td colspan="7" class="px-6 py-10 text-center text-slate-400 text-sm">
         No transactions found — re-upload the statement to try again.
       </td></tr>`;
-  }
-}
+				}
+			}
 
-async function confirmMatch(txId) {
-  const ledger=document.getElementById(`ledger-${txId}`).value;
-  await api(`/bank/transaction/${txId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({matched_ledger:ledger,match_confirmed:true})});
-  showToast('Match confirmed','success');
-}
+			async function confirmMatch(txId) {
+				const ledger = document.getElementById(`ledger-${txId}`).value;
+				await api(`/bank/transaction/${txId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						matched_ledger: ledger,
+						match_confirmed: true,
+					}),
+				});
+				showToast('Match confirmed', 'success');
+			}
 
-async function refreshCost() {
-  try {
-    const res=await api('/cost'); if (!res||!res.ok) return;
-    const d=await res.json();
-    document.getElementById('cost-today').textContent=`₹${d.today_inr.toFixed(2)}`;
-    document.getElementById('cost-month').textContent=`₹${d.month_inr.toFixed(2)}`;
-    document.getElementById('cost-claude').textContent=`₹${(d.claude_month_inr||0).toFixed(2)}`;
-    document.getElementById('cost-docai').textContent=`₹${(d.docai_month_inr||0).toFixed(2)}`;
-    document.getElementById('docs-month').textContent=d.docs_month||0;
-    document.getElementById('budget-pct-label').textContent=`${d.budget_used_pct}%`;
-    const bar=document.getElementById('budget-bar');
-    bar.style.width=`${d.budget_used_pct}%`;
-    if (d.budget_used_pct>80) { bar.classList.remove('bg-indigo-500','bg-amber-500'); bar.classList.add('bg-red-500'); }
-    else if (d.budget_used_pct>60) { bar.classList.remove('bg-indigo-500','bg-red-500'); bar.classList.add('bg-amber-500'); }
-  } catch(e) {}
-}
+			async function refreshCost() {
+				try {
+					const res = await api('/cost');
+					if (!res || !res.ok) return;
+					const d = await res.json();
+					document.getElementById('cost-today').textContent =
+						`₹${d.today_inr.toFixed(2)}`;
+					document.getElementById('cost-month').textContent =
+						`₹${d.month_inr.toFixed(2)}`;
+					document.getElementById('cost-claude').textContent =
+						`₹${(d.claude_month_inr || 0).toFixed(2)}`;
+					document.getElementById('cost-docai').textContent =
+						`₹${(d.docai_month_inr || 0).toFixed(2)}`;
+					document.getElementById('docs-month').textContent = d.docs_month || 0;
+					document.getElementById('budget-pct-label').textContent =
+						`${d.budget_used_pct}%`;
+					const bar = document.getElementById('budget-bar');
+					bar.style.width = `${d.budget_used_pct}%`;
+					if (d.budget_used_pct > 80) {
+						bar.classList.remove('bg-brand-500', 'bg-amber-500');
+						bar.classList.add('bg-red-500');
+					} else if (d.budget_used_pct > 60) {
+						bar.classList.remove('bg-brand-500', 'bg-red-500');
+						bar.classList.add('bg-amber-500');
+					}
+				} catch (e) {}
+			}
 
-function fmt(n) { if (n==null) return '0.00'; return Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function fmtDate(d) { if (!d) return '—'; try { return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}); } catch { return d; } }
-// Bank statement specific formatters — match the original statement style exactly
-function fmtBankDate(d) {
-  // Returns DD-MM-YYYY (hyphens, like "20-09-2024")
-  if (!d) return '—';
-  try {
-    const dt = new Date(d + 'T00:00:00');
-    const dd = String(dt.getDate()).padStart(2,'0');
-    const mm = String(dt.getMonth()+1).padStart(2,'0');
-    const yyyy = dt.getFullYear();
-    return `${dd}-${mm}-${yyyy}`;
-  } catch { return d; }
-}
-function fmtBankAmt(n) {
-  // Plain Indian-formatted number, no ₹ (like "1,23,456.00")
-  if (!n) return '';
-  return Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-}
-function fmtBankBal(n) {
-  // Balance with Cr suffix, no ₹, no space (like "5,784.75Cr")
-  if (n == null) return '';
-  return Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) + 'Cr';
-}
-</script>
-</body>
+			function fmt(n) {
+				if (n == null) return '0.00';
+				return Number(n).toLocaleString('en-IN', {
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2,
+				});
+			}
+			function fmtDate(d) {
+				if (!d) return '—';
+				try {
+					return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', {
+						day: '2-digit',
+						month: '2-digit',
+						year: 'numeric',
+					});
+				} catch {
+					return d;
+				}
+			}
+			// Bank statement specific formatters — match the original statement style exactly
+			function fmtBankDate(d) {
+				// Returns DD-MM-YYYY (hyphens, like "20-09-2024")
+				if (!d) return '—';
+				try {
+					const dt = new Date(d + 'T00:00:00');
+					const dd = String(dt.getDate()).padStart(2, '0');
+					const mm = String(dt.getMonth() + 1).padStart(2, '0');
+					const yyyy = dt.getFullYear();
+					return `${dd}-${mm}-${yyyy}`;
+				} catch {
+					return d;
+				}
+			}
+			function fmtBankAmt(n) {
+				// Plain Indian-formatted number, no ₹ (like "1,23,456.00")
+				if (!n) return '';
+				return Number(n).toLocaleString('en-IN', {
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2,
+				});
+			}
+			function fmtBankBal(n) {
+				// Balance with Cr suffix, no ₹, no space (like "5,784.75Cr")
+				if (n == null) return '';
+				return (
+					Number(n).toLocaleString('en-IN', {
+						minimumFractionDigits: 2,
+						maximumFractionDigits: 2,
+					}) + 'Cr'
+				);
+			}
+		</script>
+	</body>
 </html>

@@ -42,7 +42,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://complai:complai@localhost:5432/complai")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:selvester1@localhost:5432/complai_qa")
 
 engine = create_engine(
     DATABASE_URL,
