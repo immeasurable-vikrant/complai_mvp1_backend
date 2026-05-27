@@ -1283,7 +1283,9 @@
 			function _buildJobRow(j) {
 				const sc  = WA_STATUS_COLOR[j.status] || 'bg-slate-100 text-slate-500';
 				const sl  = WA_STATUS_LABEL[j.status] || j.status;
-				const inv = j.invoice_count > 0 ? ` · ${j.invoice_count} invoice${j.invoice_count > 1 ? 's' : ''}` : '';
+				const inv = j.doc_type === 'bank'
+					? (j.bank_tx_count > 0 ? ` · ${j.bank_tx_count} transactions` : '')
+					: (j.invoice_count > 0 ? ` · ${j.invoice_count} invoice${j.invoice_count > 1 ? 's' : ''}` : '');
 				const errHtml = j.error ? `<p class="text-xs text-red-500 mt-0.5 truncate" title="${j.error}">⚠ ${j.error}</p>` : '';
 				const spin = (j.status === 'processing' || j.status === 'queued')
 					? `<svg class="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>` : '';
@@ -1302,7 +1304,7 @@
 						</div>
 						<div id="wa-btn-${j.job_id}" class="flex-shrink-0">${viewBtn}</div>
 					</div>
-					<div id="wa-panel-${j.job_id}" class="hidden bg-[#f8f7f2]/60 border-t border-slate-100 px-5 pb-5 pt-4 space-y-4"></div>
+					<div id="wa-panel-${j.job_id}" data-doc-type="${j.doc_type || 'invoice'}" class="hidden bg-[#f8f7f2]/60 border-t border-slate-100 px-5 pb-5 pt-4 space-y-4"></div>
 				</div>`;
 			}
 
@@ -1433,6 +1435,9 @@
 									const btnEl = document.getElementById(`wa-btn-${j.job_id}`);
 									if (btnEl && j.status === 'done' && !btnEl.querySelector('button')) {
 										btnEl.innerHTML = `<button type="button" onclick="toggleWAResult('${j.job_id}')" id="wa-toggle-${j.job_id}" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-200 text-brand-500 hover:bg-brand-50 transition flex items-center gap-1"><span id="wa-toggle-icon-${j.job_id}">▾</span> View</button>`;
+										// Stamp doc_type so _renderWAPanel knows which API to call
+										const panelEl = document.getElementById(`wa-panel-${j.job_id}`);
+										if (panelEl) panelEl.dataset.docType = j.doc_type || 'invoice';
 									}
 
 									const errEl = document.getElementById(`wa-err-${j.job_id}`);
@@ -1455,32 +1460,89 @@
 				}
 				panel.classList.remove('hidden');
 				if (icon) icon.textContent = '▴';
+				const docType = panel.dataset.docType || 'invoice';
 				// Only fetch+render once per session — avoids re-loading when panel is toggled
-				if (!_waPanelLoaded.has(jobId)) await _renderWAPanel(jobId, panel);
+				if (!_waPanelLoaded.has(jobId)) await _renderWAPanel(jobId, panel, docType);
 			}
 
-			async function _renderWAPanel(jobId, panel) {
-				panel.innerHTML = `<div class="py-4 text-center text-sm text-slate-400">Loading invoices…</div>`;
-				const res = await api(`/extract/result/${jobId}`);
-				if (!res || !res.ok) { panel.innerHTML = `<div class="text-red-500 text-sm p-3">Failed to load.</div>`; return; }
-				const data = await res.json();
-				if (!data.invoices.length) {
-					panel.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-						⚠ No invoices extracted — Anthropic credits may be exhausted or image quality was too low.
-						<a href="https://console.anthropic.com" target="_blank" class="underline ml-1">Top up ↗</a>
-					</div>`;
-					return;
+			async function _renderWAPanel(jobId, panel, docType) {
+				const isBank = docType === 'bank';
+				panel.innerHTML = `<div class="py-4 text-center text-sm text-slate-400">Loading ${isBank ? 'bank statement' : 'invoices'}…</div>`;
+
+				if (isBank) {
+					// ── Bank statement panel ───────────────────────────────
+					const res = await api(`/bank/result/${jobId}`);
+					if (!res || !res.ok) { panel.innerHTML = `<div class="text-red-500 text-sm p-3">Failed to load bank result.</div>`; return; }
+					const data = await res.json();
+					const txs  = data.transactions || [];
+					if (!txs.length) {
+						panel.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">⚠ No transactions found. The statement may still be processing.</div>`;
+						return;
+					}
+					const credits  = (data.total_credits  || 0).toLocaleString('en-IN', {minimumFractionDigits:2});
+					const debits   = (data.total_debits   || 0).toLocaleString('en-IN', {minimumFractionDigits:2});
+					const meta     = data.statement_meta  || {};
+					const balLine  = meta.balance_validated === true
+						? `<span class="text-emerald-600 font-semibold">✅ Balance verified</span>`
+						: meta.balance_validated === false
+							? `<span class="text-red-500 font-semibold">⚠ Balance mismatch</span>`
+							: '';
+					panel.innerHTML = `
+						<div class="bg-[#f8f7f2] rounded-xl p-4 mb-3 text-sm">
+							<div class="flex flex-wrap gap-4 mb-2">
+								<span class="text-[#3d3d3b]">📊 <strong>${txs.length}</strong> transactions</span>
+								<span class="text-emerald-700">↑ Credits: <strong>₹${credits}</strong></span>
+								<span class="text-red-600">↓ Debits: <strong>₹${debits}</strong></span>
+								${balLine}
+							</div>
+							${meta.account_number ? `<div class="text-xs text-slate-400">A/C: ${meta.account_number}${meta.bank_name ? ' · ' + meta.bank_name : ''}</div>` : ''}
+						</div>
+						<div class="overflow-x-auto rounded-xl border border-slate-200">
+							<table class="w-full text-xs">
+								<thead class="bg-slate-50 text-slate-500 uppercase text-[10px]">
+									<tr>
+										<th class="px-3 py-2 text-left">Date</th>
+										<th class="px-3 py-2 text-left">Description</th>
+										<th class="px-3 py-2 text-right">Debit</th>
+										<th class="px-3 py-2 text-right">Credit</th>
+										<th class="px-3 py-2 text-right">Balance</th>
+									</tr>
+								</thead>
+								<tbody>
+									${txs.map((t,i) => `<tr class="${i%2===0?'bg-white':'bg-slate-50/50'} border-t border-slate-100">
+										<td class="px-3 py-1.5 whitespace-nowrap text-slate-500">${t.transaction_date || '—'}</td>
+										<td class="px-3 py-1.5 max-w-[200px] truncate">${t.description || '—'}</td>
+										<td class="px-3 py-1.5 text-right text-red-600">${t.debit ? '₹' + Number(t.debit).toLocaleString('en-IN',{minimumFractionDigits:2}) : ''}</td>
+										<td class="px-3 py-1.5 text-right text-emerald-600">${t.credit ? '₹' + Number(t.credit).toLocaleString('en-IN',{minimumFractionDigits:2}) : ''}</td>
+										<td class="px-3 py-1.5 text-right text-slate-500">${t.balance != null ? '₹' + Number(t.balance).toLocaleString('en-IN',{minimumFractionDigits:2}) : '—'}</td>
+									</tr>`).join('')}
+								</tbody>
+							</table>
+						</div>`;
+					_waPanelLoaded.add(jobId);
+
+				} else {
+					// ── Invoice panel ──────────────────────────────────────
+					const res = await api(`/extract/result/${jobId}`);
+					if (!res || !res.ok) { panel.innerHTML = `<div class="text-red-500 text-sm p-3">Failed to load.</div>`; return; }
+					const data = await res.json();
+					if (!data.invoices.length) {
+						panel.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+							⚠ No invoices extracted — image quality may be too low or the document had no invoice data.
+						</div>`;
+						return;
+					}
+					currentInvoiceIds = data.invoices.map(i => i.id);
+					panel.innerHTML = '';
+					const exportBar = document.createElement('div');
+					exportBar.className = 'flex gap-2 mb-3 flex-wrap';
+					exportBar.innerHTML = `
+						<button onclick="exportFile('busy')" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-emerald-700 transition">⬇ Busy Excel</button>
+						<button onclick="exportFile('tally')" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-blue-700 transition">⬇ Tally XML</button>`;
+					panel.appendChild(exportBar);
+					data.invoices.forEach(inv => panel.appendChild(buildInvoiceCard(inv)));
+					_waPanelLoaded.add(jobId);
 				}
-				currentInvoiceIds = data.invoices.map(i => i.id);
-				panel.innerHTML = '';
-				const exportBar = document.createElement('div');
-				exportBar.className = 'flex gap-2 mb-3 flex-wrap';
-				exportBar.innerHTML = `
-					<button onclick="exportFile('busy')" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-emerald-700 transition">⬇ Busy Excel</button>
-					<button onclick="exportFile('tally')" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-blue-700 transition">⬇ Tally XML</button>`;
-				panel.appendChild(exportBar);
-				data.invoices.forEach(inv => panel.appendChild(buildInvoiceCard(inv)));
-				_waPanelLoaded.add(jobId); // mark as loaded so toggles don't re-fetch
 			}
 
 			// Poll every 8s — update badge + smart-update inbox if on WA tab

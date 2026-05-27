@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from models.db import (
-    Client, Document, DocumentSourceChannel, ExtractionCorrection,
+    BankTransaction, Client, Document, DocumentSourceChannel, ExtractionCorrection,
     Firm, Invoice, JobStatus, InvoiceStatus, get_db,
 )
 from routes.auth import get_current_firm
@@ -196,12 +196,17 @@ def get_whatsapp_inbox(
     result = []
     for job, doc, client in jobs:
         invoice_count = db.query(Invoice).filter(Invoice.document_id == doc.id).count()
+        bank_tx_count = db.query(BankTransaction).filter(BankTransaction.document_id == doc.id).count()
+        # doc_type: "bank" if bank transactions exist, otherwise "invoice"
+        doc_type = "bank" if bank_tx_count > 0 else "invoice"
         result.append({
             "job_id":        job.id,
             "status":        job.status.value,
             "client_name":   client.name,
             "client_phone":  client.whatsapp_number or "",
             "invoice_count": invoice_count,
+            "bank_tx_count": bank_tx_count,
+            "doc_type":      doc_type,
             "error":         job.error_message,
             "created_at":    job.created_at.strftime("%d %b %H:%M") if job.created_at else "",
             "month_year":    doc.month_year or "",
