@@ -202,6 +202,7 @@ def get_whatsapp_inbox(
         result.append({
             "job_id":        job.id,
             "status":        job.status.value,
+            "client_id":     client.id,
             "client_name":   client.name,
             "client_phone":  client.whatsapp_number or "",
             "invoice_count": invoice_count,

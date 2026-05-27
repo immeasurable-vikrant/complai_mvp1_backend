@@ -1304,7 +1304,7 @@
 						</div>
 						<div id="wa-btn-${j.job_id}" class="flex-shrink-0">${viewBtn}</div>
 					</div>
-					<div id="wa-panel-${j.job_id}" data-doc-type="${j.doc_type || 'invoice'}" class="hidden bg-[#f8f7f2]/60 border-t border-slate-100 px-5 pb-5 pt-4 space-y-4"></div>
+					<div id="wa-panel-${j.job_id}" data-doc-type="${j.doc_type || 'invoice'}" data-client-id="${j.client_id || ''}" data-month-year="${j.month_year || ''}" class="hidden bg-[#f8f7f2]/60 border-t border-slate-100 px-5 pb-5 pt-4 space-y-4"></div>
 				</div>`;
 			}
 
@@ -1435,9 +1435,13 @@
 									const btnEl = document.getElementById(`wa-btn-${j.job_id}`);
 									if (btnEl && j.status === 'done' && !btnEl.querySelector('button')) {
 										btnEl.innerHTML = `<button type="button" onclick="toggleWAResult('${j.job_id}')" id="wa-toggle-${j.job_id}" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-200 text-brand-500 hover:bg-brand-50 transition flex items-center gap-1"><span id="wa-toggle-icon-${j.job_id}">▾</span> View</button>`;
-										// Stamp doc_type so _renderWAPanel knows which API to call
+										// Stamp doc_type/client_id/month_year so _renderWAPanel knows which API to call
 										const panelEl = document.getElementById(`wa-panel-${j.job_id}`);
-										if (panelEl) panelEl.dataset.docType = j.doc_type || 'invoice';
+										if (panelEl) {
+											panelEl.dataset.docType   = j.doc_type   || 'invoice';
+											panelEl.dataset.clientId  = j.client_id  || '';
+											panelEl.dataset.monthYear = j.month_year || '';
+										}
 									}
 
 									const errEl = document.getElementById(`wa-err-${j.job_id}`);
@@ -1470,54 +1474,122 @@
 				panel.innerHTML = `<div class="py-4 text-center text-sm text-slate-400">Loading ${isBank ? 'bank statement' : 'invoices'}…</div>`;
 
 				if (isBank) {
-					// ── Bank statement panel ───────────────────────────────
+					// ── Bank statement panel — same design as manual upload tab ──
 					const res = await api(`/bank/result/${jobId}`);
 					if (!res || !res.ok) { panel.innerHTML = `<div class="text-red-500 text-sm p-3">Failed to load bank result.</div>`; return; }
 					const data = await res.json();
 					const txs  = data.transactions || [];
+					const meta = data.statement_meta || {};
+
 					if (!txs.length) {
 						panel.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">⚠ No transactions found. The statement may still be processing.</div>`;
 						return;
 					}
-					const credits  = (data.total_credits  || 0).toLocaleString('en-IN', {minimumFractionDigits:2});
-					const debits   = (data.total_debits   || 0).toLocaleString('en-IN', {minimumFractionDigits:2});
-					const meta     = data.statement_meta  || {};
-					const balLine  = meta.balance_validated === true
-						? `<span class="text-emerald-600 font-semibold">✅ Balance verified</span>`
-						: meta.balance_validated === false
-							? `<span class="text-red-500 font-semibold">⚠ Balance mismatch</span>`
+
+					const isoToDisplay = (v) => v ? v.split('-').reverse().join('-') : '—';
+					const fmtBal = (v) => v != null ? fmtBankBal(v) : '—';
+
+					// Balance badge
+					const balBadge = meta.balance_matches === true
+						? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-400 text-white">✓ Balanced</span>`
+						: meta.balance_matches === false
+							? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-400 text-white">⚠ Balance Mismatch</span>`
 							: '';
+
+					const clientId  = panel.dataset.clientId  || '';
+					const monthYear = panel.dataset.monthYear || '';
+
+					// Build transaction rows HTML
+					const rowsHtml = txs.map(tx => {
+						const unmatched  = !tx.matched_ledger;
+						const modeBadge  = tx.mode
+							? `<span class="ml-1.5 inline-block align-middle px-1 py-0 rounded text-[9px] font-bold tracking-wide ${MODE_COLOURS[tx.mode] || 'bg-slate-100 text-slate-500'}">${esc(tx.mode)}</span>`
+							: '';
+						return `<tr class="hover:bg-blue-50/30 transition-colors border-t border-slate-100">
+							<td class="px-4 py-2 text-[#2a2a28] whitespace-nowrap font-mono">${fmtBankDate(tx.transaction_date)}</td>
+							<td class="px-4 py-2 text-[#141413]" style="min-width:220px;max-width:340px">
+								<span title="${esc(tx.narration || '')}">${esc(tx.narration) || '—'}</span>${modeBadge}
+							</td>
+							<td class="px-4 py-2 text-slate-500 font-mono whitespace-nowrap">${esc(tx.reference || '')}</td>
+							<td class="px-4 py-2 text-right text-red-600 font-mono whitespace-nowrap">${fmtBankAmt(tx.debit)}</td>
+							<td class="px-4 py-2 text-right text-emerald-700 font-mono whitespace-nowrap">${fmtBankAmt(tx.credit)}</td>
+							<td class="px-4 py-2 text-right text-[#2a2a28] font-mono whitespace-nowrap font-medium">${fmtBankBal(tx.balance)}</td>
+							<td class="px-4 py-2 border-l border-slate-100">
+								<div class="flex items-center gap-1.5">
+									<input id="wa-ledger-${tx.id}" type="text" value="${esc(tx.matched_ledger || '')}"
+										placeholder="${unmatched ? 'e.g. XYZ Suppliers' : ''}"
+										class="flex-1 min-w-[120px] border rounded px-1.5 py-0.5 text-[11px] ${unmatched ? 'border-slate-200 bg-white placeholder-slate-300' : 'border-transparent bg-transparent text-[#3d3d3b]'} focus:border-brand-300 focus:bg-white outline-none transition"
+										title="Enter vendor/party name for Tally export"/>
+									<button onclick="confirmMatchWA(${tx.id})"
+										class="shrink-0 text-[10px] px-2 py-0.5 rounded font-semibold whitespace-nowrap ${tx.match_confirmed ? 'text-emerald-600' : 'text-brand-500 hover:bg-brand-50'}">
+										${tx.match_confirmed ? '✓' : 'Save'}
+									</button>
+								</div>
+							</td>
+						</tr>`;
+					}).join('');
+
+					const headPeriod = meta.period_from || meta.period_to
+						? ` for the period from ${isoToDisplay(meta.period_from)} to ${isoToDisplay(meta.period_to)}`
+						: '';
+
 					panel.innerHTML = `
-						<div class="bg-[#f8f7f2] rounded-xl p-4 mb-3 text-sm">
-							<div class="flex flex-wrap gap-4 mb-2">
-								<span class="text-[#3d3d3b]">📊 <strong>${txs.length}</strong> transactions</span>
-								<span class="text-emerald-700">↑ Credits: <strong>₹${credits}</strong></span>
-								<span class="text-red-600">↓ Debits: <strong>₹${debits}</strong></span>
-								${balLine}
+						<!-- Bank name header bar -->
+						<div class="bg-white border border-slate-200 rounded-xl overflow-hidden mb-3">
+							<div class="bg-slate-800 text-white px-6 py-3 flex items-center justify-between">
+								<span class="font-bold text-base tracking-wide">${esc(meta.bank_name || 'Bank Statement')}</span>
+								${balBadge}
 							</div>
-							${meta.account_number ? `<div class="text-xs text-slate-400">A/C: ${meta.account_number}${meta.bank_name ? ' · ' + meta.bank_name : ''}</div>` : ''}
+							<!-- Account details -->
+							<div class="px-6 py-4 grid grid-cols-2 md:grid-cols-3 gap-x-10 gap-y-3 border-b border-slate-100">
+								<div><div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Account Holder</div><div class="text-sm font-semibold text-[#141413]">${esc(meta.account_holder || '—')}</div></div>
+								<div><div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">A/C No.</div><div class="text-sm font-semibold text-[#141413] font-mono tracking-wider">${esc(meta.account_number || '—')}</div></div>
+								<div><div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">IFSC</div><div class="text-sm font-semibold text-[#141413] font-mono">${esc(meta.ifsc_code || '—')}</div></div>
+								<div><div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Statement Period</div><div class="text-sm font-semibold text-[#141413]">${meta.period_from || meta.period_to ? isoToDisplay(meta.period_from) + ' to ' + isoToDisplay(meta.period_to) : '—'}</div></div>
+								<div><div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Opening Balance</div><div class="text-sm font-semibold text-[#141413]">${fmtBal(meta.opening_balance)}</div></div>
+								<div><div class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Closing Balance</div><div class="text-sm font-semibold text-[#141413]">${fmtBal(meta.closing_balance)}</div></div>
+							</div>
+							<!-- Summary totals bar -->
+							<div class="px-6 py-3 flex items-center gap-8 bg-[#f8f7f2] text-sm flex-wrap">
+								<div class="flex items-center gap-2"><span class="text-slate-500 text-xs">Total Withdrawals</span><span class="font-bold text-red-600">${fmtBankAmt(data.total_debits)}</span></div>
+								<div class="w-px h-4 bg-slate-200"></div>
+								<div class="flex items-center gap-2"><span class="text-slate-500 text-xs">Total Deposits</span><span class="font-bold text-emerald-600">${fmtBankAmt(data.total_credits)}</span></div>
+								<div class="w-px h-4 bg-slate-200"></div>
+								<div class="flex items-center gap-2"><span class="text-slate-500 text-xs">Transactions</span><span class="font-bold text-[#2a2a28]">${data.transaction_count}</span></div>
+								<div class="ml-auto">
+									<button onclick="exportBankWA('${clientId}','${monthYear}')" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">&#8595; Download Excel</button>
+								</div>
+							</div>
 						</div>
-						<div class="overflow-x-auto rounded-xl border border-slate-200">
-							<table class="w-full text-xs">
-								<thead class="bg-slate-50 text-slate-500 uppercase text-[10px]">
-									<tr>
-										<th class="px-3 py-2 text-left">Date</th>
-										<th class="px-3 py-2 text-left">Description</th>
-										<th class="px-3 py-2 text-right">Debit</th>
-										<th class="px-3 py-2 text-right">Credit</th>
-										<th class="px-3 py-2 text-right">Balance</th>
-									</tr>
-								</thead>
-								<tbody>
-									${txs.map((t,i) => `<tr class="${i%2===0?'bg-white':'bg-slate-50/50'} border-t border-slate-100">
-										<td class="px-3 py-1.5 whitespace-nowrap text-slate-500">${t.transaction_date || '—'}</td>
-										<td class="px-3 py-1.5 max-w-[200px] truncate">${t.description || '—'}</td>
-										<td class="px-3 py-1.5 text-right text-red-600">${t.debit ? '₹' + Number(t.debit).toLocaleString('en-IN',{minimumFractionDigits:2}) : ''}</td>
-										<td class="px-3 py-1.5 text-right text-emerald-600">${t.credit ? '₹' + Number(t.credit).toLocaleString('en-IN',{minimumFractionDigits:2}) : ''}</td>
-										<td class="px-3 py-1.5 text-right text-slate-500">${t.balance != null ? '₹' + Number(t.balance).toLocaleString('en-IN',{minimumFractionDigits:2}) : '—'}</td>
-									</tr>`).join('')}
-								</tbody>
-							</table>
+						<!-- Statement heading -->
+						<div class="text-center text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">Statement of Account${headPeriod}</div>
+						<!-- Transaction table -->
+						<div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+							<div class="overflow-x-auto">
+								<table class="w-full border-collapse text-xs">
+									<thead>
+										<tr class="border-b-2 border-slate-300">
+											<th class="px-4 py-3 text-left font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]">DATE</th>
+											<th class="px-4 py-3 text-left font-semibold text-[#3d3d3b] bg-[#f8f7f2]">PARTICULARS</th>
+											<th class="px-4 py-3 text-left font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]">CHQ.NO.</th>
+											<th class="px-4 py-3 text-right font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]">WITHDRAWALS</th>
+											<th class="px-4 py-3 text-right font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]">DEPOSITS</th>
+											<th class="px-4 py-3 text-right font-semibold text-[#3d3d3b] whitespace-nowrap bg-[#f8f7f2]">BALANCE</th>
+											<th class="px-4 py-3 text-left font-semibold text-slate-400 whitespace-nowrap bg-[#f8f7f2] border-l border-slate-200" title="Type the party/vendor name for each transaction. This maps to the Tally ledger name used during export.">PARTY NAME <span class="font-normal normal-case text-slate-300">for Tally</span></th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-slate-100">${rowsHtml}</tbody>
+									<tfoot>
+										<tr class="border-t-2 border-slate-300 bg-[#f8f7f2] font-semibold text-xs">
+											<td class="px-4 py-3 text-slate-500 whitespace-nowrap" colspan="3">Total</td>
+											<td class="px-4 py-3 text-right text-red-600 font-bold whitespace-nowrap">${fmtBankAmt(data.total_debits)}</td>
+											<td class="px-4 py-3 text-right text-emerald-600 font-bold whitespace-nowrap">${fmtBankAmt(data.total_credits)}</td>
+											<td class="px-4 py-3 text-right text-[#2a2a28] font-bold whitespace-nowrap">${fmtBal(meta.closing_balance)}</td>
+											<td class="px-4 py-3 border-l border-slate-200"></td>
+										</tr>
+									</tfoot>
+								</table>
+							</div>
 						</div>`;
 					_waPanelLoaded.add(jobId);
 
@@ -1543,6 +1615,30 @@
 					data.invoices.forEach(inv => panel.appendChild(buildInvoiceCard(inv)));
 					_waPanelLoaded.add(jobId);
 				}
+			}
+
+			// Save party name from WhatsApp bank panel (same as confirmMatch but uses wa-ledger- prefix)
+			async function confirmMatchWA(txId) {
+				const ledger = document.getElementById(`wa-ledger-${txId}`)?.value || '';
+				const res = await api(`/bank/transaction/${txId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ matched_ledger: ledger, match_confirmed: true }),
+				});
+				if (res && res.ok) showToast('Party name saved', 'success');
+				else showToast('Save failed', 'error');
+			}
+
+			// Export bank Excel from WhatsApp panel
+			async function exportBankWA(clientId, monthYear) {
+				if (!clientId || !monthYear) return showToast('Missing client or month', 'warn');
+				const res = await api('/export/bank', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ client_id: parseInt(clientId), month_year: monthYear }),
+				});
+				if (!res || !res.ok) return showToast('Export failed', 'error');
+				downloadBlob(await res.blob(), `complai_bank_${monthYear}.xlsx`);
 			}
 
 			// Poll every 8s — update badge + smart-update inbox if on WA tab
