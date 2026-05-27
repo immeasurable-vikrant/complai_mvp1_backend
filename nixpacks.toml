@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python311", "gcc", "libpq"]
+nixPkgs = ["python311", "gcc", "postgresql"]
 
 [phases.install]
 cmds = ["pip install -r backend/requirements.txt"]
