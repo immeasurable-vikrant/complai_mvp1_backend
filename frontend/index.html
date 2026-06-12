@@ -513,10 +513,11 @@
 						<div
 							class="bg-white rounded-xl border border-slate-200 p-4 card-shadow"
 						>
-							<div
-								class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3"
-							>
-								Select Client &amp; Month
+							<div class="flex items-center justify-between mb-3">
+								<div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+									Select Client &amp; Month
+								</div>
+								<button onclick="openAddClientModal()" class="text-xs text-[#7C6A46] font-semibold hover:underline">+ Add Client</button>
 							</div>
 							<select
 								id="client-select"
@@ -724,10 +725,11 @@
 						<div
 							class="bg-white rounded-xl border border-slate-200 p-4 card-shadow"
 						>
-							<div
-								class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3"
-							>
-								Select Client &amp; Month
+							<div class="flex items-center justify-between mb-3">
+								<div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+									Select Client &amp; Month
+								</div>
+								<button onclick="openAddClientModal()" class="text-xs text-[#7C6A46] font-semibold hover:underline">+ Add Client</button>
 							</div>
 							<select id="bank-client-select" class="field-input mb-3">
 								<option value="">— Select client —</option>
@@ -2977,5 +2979,80 @@
 				);
 			}
 		</script>
+
+	<!-- ── Add Client Modal ───────────────────────────────────── -->
+	<div id="add-client-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+		<div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+			<div class="flex items-center justify-between mb-5">
+				<h2 class="text-base font-bold text-slate-800">Add New Client</h2>
+				<button onclick="closeAddClientModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+			</div>
+			<div class="space-y-3">
+				<div>
+					<label class="block text-xs font-semibold text-slate-500 mb-1">Client / Business Name <span class="text-red-400">*</span></label>
+					<input id="new-client-name" type="text" placeholder="e.g. Sharma Trading Co." class="field-input" />
+				</div>
+				<div>
+					<label class="block text-xs font-semibold text-slate-500 mb-1">GSTIN <span class="text-slate-300">(optional)</span></label>
+					<input id="new-client-gstin" type="text" maxlength="15" placeholder="e.g. 27AABCS1429B1Z3" class="field-input uppercase" />
+				</div>
+				<div>
+					<label class="block text-xs font-semibold text-slate-500 mb-1">WhatsApp Number <span class="text-slate-300">(optional)</span></label>
+					<input id="new-client-whatsapp" type="tel" placeholder="e.g. +91 98765 43210" class="field-input" />
+				</div>
+				<div>
+					<label class="block text-xs font-semibold text-slate-500 mb-1">Email <span class="text-slate-300">(optional)</span></label>
+					<input id="new-client-email" type="email" placeholder="e.g. client@example.com" class="field-input" />
+				</div>
+			</div>
+			<div class="flex gap-3 mt-6">
+				<button onclick="closeAddClientModal()" class="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">Cancel</button>
+				<button onclick="submitAddClient()" class="flex-1 py-2.5 rounded-xl bg-[#7C6A46] text-white text-sm font-semibold hover:bg-[#6b5a38] transition">Add Client</button>
+			</div>
+		</div>
+	</div>
+	<script>
+		function openAddClientModal() {
+			document.getElementById('new-client-name').value = '';
+			document.getElementById('new-client-gstin').value = '';
+			document.getElementById('new-client-whatsapp').value = '';
+			document.getElementById('new-client-email').value = '';
+			document.getElementById('add-client-modal').classList.remove('hidden');
+			setTimeout(() => document.getElementById('new-client-name').focus(), 50);
+		}
+		function closeAddClientModal() {
+			document.getElementById('add-client-modal').classList.add('hidden');
+		}
+		async function submitAddClient() {
+			const name = document.getElementById('new-client-name').value.trim();
+			if (!name) { showToast('Client name is required', 'error'); return; }
+			const body = {
+				name,
+				gstin:            document.getElementById('new-client-gstin').value.trim().toUpperCase() || null,
+				whatsapp_number:  document.getElementById('new-client-whatsapp').value.trim() || null,
+				email:            document.getElementById('new-client-email').value.trim() || null,
+			};
+			const res = await api('/clients', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			if (!res || !res.ok) { showToast('Failed to add client', 'error'); return; }
+			const client = await res.json();
+			closeAddClientModal();
+			await loadClients();
+			// Auto-select the newly created client in whichever tab is visible
+			const invoiceSel = document.getElementById('client-select');
+			const bankSel    = document.getElementById('bank-client-select');
+			if (invoiceSel) invoiceSel.value = client.id;
+			if (bankSel)    bankSel.value    = client.id;
+			onClientChange();
+			showToast(`✓ ${client.name} added`, 'success');
+		}
+		// Close modal on backdrop click
+		document.getElementById('add-client-modal').addEventListener('click', function(e) {
+			if (e.target === this) closeAddClientModal();
+		});
+	</script>
 	</body>
 </html>
