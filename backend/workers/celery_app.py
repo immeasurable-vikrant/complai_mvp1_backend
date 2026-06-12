@@ -451,9 +451,36 @@ def process_bank_statement(
         job.status = JobStatusEnum.processing
         db.commit()
 
-        # ── Step 1: Extract transactions + statement metadata ──
-        transactions, stmt_meta = _extract_bank_transactions(file_path)
-        job.chunks_total = len(transactions)
+        # ── Step 1: Count PDF pages early so the UI shows real progress ──────
+        # For PDFs we set chunks_total = number of pages before extraction starts.
+        # A progress_callback updates chunks_done after each page so the
+        # frontend progress bar moves in real time.
+        _file_ext = Path(file_path).suffix.lower()
+        if _file_ext == ".pdf":
+            try:
+                import pdfplumber as _plumber
+                with _plumber.open(file_path) as _pdf:
+                    job.chunks_total = len(_pdf.pages)
+                    db.commit()
+                    logger.info(f"[worker/bank] PDF has {job.chunks_total} pages — progress bar set")
+            except Exception:
+                pass  # will be set to len(transactions) later as fallback
+
+        def _page_progress(pages_done: int):
+            """Called by _extract_bank_pdf after each page is processed."""
+            try:
+                job.chunks_done = min(pages_done, job.chunks_total or 1)
+                db.commit()
+            except Exception:
+                pass
+
+        # ── Step 2: Extract transactions + statement metadata ──
+        transactions, stmt_meta = _extract_bank_transactions(
+            file_path,
+            progress_callback=_page_progress if _file_ext == ".pdf" else None,
+        )
+        if not job.chunks_total:
+            job.chunks_total = len(transactions)
         db.commit()
 
         # ── Step 2: Save BankStatementMeta ─────────────────────
@@ -608,19 +635,22 @@ def process_bank_statement(
             pass
 
 
-def _extract_bank_transactions(file_path: str):
+def _extract_bank_transactions(file_path: str, progress_callback=None):
     """
     Extract rows from a bank statement PDF or Excel.
     Returns (transactions, statement_meta) where:
       transactions  — list of {date, narration, reference, mode, debit, credit, balance}
       statement_meta — dict with account info, opening/closing balance, period, etc.
+
+    progress_callback(pages_done: int) — optional, called after each PDF page
+    so the frontend progress bar updates in real time.
     """
     ext = Path(file_path).suffix.lower()
 
     if ext in (".xlsx", ".csv"):
         txs, meta = _extract_bank_excel(file_path)
     elif ext == ".pdf":
-        txs, meta = _extract_bank_pdf(file_path)
+        txs, meta = _extract_bank_pdf(file_path, progress_callback=progress_callback)
     else:
         logger.warning(f"[bank] Unknown file type: {ext}")
         txs, meta = [], {}
@@ -914,15 +944,18 @@ def _extract_bank_excel(file_path: str):
         return [], {}
 
 
-def _extract_bank_pdf(file_path: str):
+def _extract_bank_pdf(file_path: str, progress_callback=None):
     """
-    Parse bank statement from PDF.
+    Parse bank statement from PDF — one page at a time.
 
     Strategy (in order):
       1. pdfplumber table extraction — with multiple settings/strategies
       2. pdfplumber text extraction  — column-aware line-by-line parsing
       3. Claude Haiku text parsing   — handles any Indian bank format
          (JK Bank, HDFC, SBI, ICICI, Axis, Kotak, IndusInd, etc.)
+
+    progress_callback(pages_done: int) is called after each page is processed
+    so the frontend progress bar updates in real time.
 
     Returns (transactions, statement_meta) where statement_meta contains
     account info, period, opening/closing balances.
@@ -951,6 +984,12 @@ def _extract_bank_pdf(file_path: str):
                 )
                 if text.strip():
                     page_texts.append(f"[Page {i+1}]\n{text}")
+                # Report page-level progress during text collection
+                if progress_callback:
+                    try:
+                        progress_callback(i + 1)
+                    except Exception:
+                        pass
 
             logger.info(f"[bank:pdf] Text extraction: {len(page_texts)}/{num_pages} pages with text")
 
@@ -1047,6 +1086,11 @@ def _extract_bank_pdf(file_path: str):
                     f"[bank:pdf] Claude text pages {chunk_start+1}–"
                     f"{chunk_start+len(chunk)}: {len(chunk_txs)} transactions"
                 )
+                if progress_callback:
+                    try:
+                        progress_callback(chunk_start + len(chunk))
+                    except Exception:
+                        pass
 
             if not all_txs:
                 logger.warning("[bank:pdf] Claude text parsing returned 0 transactions")

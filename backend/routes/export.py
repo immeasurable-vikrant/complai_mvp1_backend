@@ -200,25 +200,26 @@ def export_busy(
     ws2 = wb.create_sheet("Busy Import v21")
 
     busy_v21_headers = [
-        "Date",           # DD/MM/YYYY — voucher date
-        "Vch No.",        # leave blank → Busy auto-assigns
-        "Ref No.",        # supplier's invoice number
-        "Ref Date",       # supplier's invoice date DD/MM/YYYY
-        "Party Name",     # vendor/supplier name (must exist in Busy Masters)
-        "Party GSTIN",    # vendor GSTIN
-        "Place of Supply",# state name e.g. "Maharashtra"
-        "Purchase A/c",   # purchase ledger name in Busy e.g. "Purchase"
-        "Taxable Amount", # taxable value (number, no ₹)
-        "CGST %",         # e.g. 9 (not 9%)
-        "CGST Amount",    # e.g. 180.00
-        "SGST %",         # e.g. 9
-        "SGST Amount",    # e.g. 180.00
-        "IGST %",         # e.g. 18 (blank for intrastate)
-        "IGST Amount",    # e.g. 360.00 (blank for intrastate)
-        "Cess Amount",    # 0 for most goods
-        "Round Off",      # rounding difference if any
-        "Net Amount",     # final invoice total (number, no ₹)
-        "Narration",      # optional note
+        "Date",             # DD/MM/YYYY — voucher date (BUSY exact label)
+        "Vch No.",          # leave blank → Busy auto-assigns
+        "Ref No.",          # supplier's invoice number
+        "Ref Date",         # supplier's invoice date DD/MM/YYYY
+        "Party Name",       # vendor/supplier name (must exist in Busy Masters)
+        "GSTIN/UIN",        # vendor GSTIN — BUSY exact label (not "Party GSTIN")
+        "Place of Supply",  # state name e.g. "Maharashtra"
+        "Purchase A/c",     # purchase ledger name in Busy (rename to match your books)
+        "Taxable Amount",   # taxable value (number, no ₹)
+        "CGST Rate (%)",    # e.g. 9   — BUSY exact label
+        "CGST Amount",      # e.g. 180.00
+        "SGST/UTGST Rate (%)",  # e.g. 9  — BUSY exact label
+        "SGST/UTGST Amount",    # e.g. 180.00
+        "IGST Rate (%)",    # e.g. 18 (blank for intrastate) — BUSY exact label
+        "IGST Amount",      # e.g. 360.00 (blank for intrastate)
+        "Cess Rate (%)",    # 0 for most goods
+        "Cess Amount",      # 0 for most goods
+        "Round Off",        # rounding difference if any
+        "Net Amount",       # final invoice total (number, no ₹)
+        "Narration",        # optional note
     ]
     _apply_header_style(ws2, busy_v21_headers, PatternFill("solid", fgColor="1F4E79"), Font(color="FFFFFF", bold=True))
 
@@ -267,21 +268,22 @@ def export_busy(
         is_intrastate = (not inv.transaction_type) or inv.transaction_type.value == "intrastate"
 
         ws2.append([
-            _fmt_date_ddmmyyyy(inv.invoice_date),  # Date
+            _fmt_date_ddmmyyyy(inv.invoice_date),   # Date
             "",                                      # Vch No. — let Busy assign
             inv.invoice_number or "",               # Ref No.
             _fmt_date_ddmmyyyy(inv.invoice_date),  # Ref Date
             inv.vendor_name or "",                  # Party Name
-            inv.vendor_gstin or "",                 # Party GSTIN
+            inv.vendor_gstin or "",                 # GSTIN/UIN
             place_of_supply,                        # Place of Supply
             "Purchase",                             # Purchase A/c
             taxable,                                # Taxable Amount
-            cgst_pct if is_intrastate else 0,       # CGST %
+            cgst_pct if is_intrastate else 0,       # CGST Rate (%)
             cgst_amt if is_intrastate else 0,       # CGST Amount
-            sgst_pct if is_intrastate else 0,       # SGST %
-            sgst_amt if is_intrastate else 0,       # SGST Amount
-            igst_pct if not is_intrastate else 0,   # IGST %
+            sgst_pct if is_intrastate else 0,       # SGST/UTGST Rate (%)
+            sgst_amt if is_intrastate else 0,       # SGST/UTGST Amount
+            igst_pct if not is_intrastate else 0,   # IGST Rate (%)
             igst_amt if not is_intrastate else 0,   # IGST Amount
+            0,                                      # Cess Rate (%)
             0,                                      # Cess Amount
             round_off,                              # Round Off
             total,                                  # Net Amount
@@ -293,6 +295,7 @@ def export_busy(
                 ws2.cell(row=ws2.max_row, column=c).fill = rev_fill
 
     _autowidth(ws2, busy_v21_headers)
+    ws2.freeze_panes = "A4"   # freeze header + instruction rows
 
     # ═══════════════════════════════════════════════════════
     # SHEET 3 — Busy Import v17/v18  (older Busy versions)
@@ -604,16 +607,18 @@ def export_bank(
     # ═══════════════════════════════════════════════════════
     ws3 = wb.create_sheet("Busy Bank Import")
 
+    # BUSY v21/22/23 exact column headers for Receipt/Payment/Contra voucher import
+    # Administration → Import Data → Vouchers
     bank_import_headers = [
-        "Date",            # DD/MM/YYYY
-        "Vch Type",        # Receipt / Payment / Contra / Journal
-        "Vch No.",         # blank = Busy auto-assigns
-        "Bank A/c",        # your bank ledger name in Busy
-        "Party/Ledger A/c",# matched party or ledger name
-        "Amount",          # always positive number
-        "Narration",       # bank narration
-        "Ref No.",         # reference / cheque number (from narration if found)
-        "Import Status",   # READY / UNMATCHED (CA fills blanks before importing)
+        "Date",            # DD/MM/YYYY  — BUSY exact
+        "Vch Type",        # Receipt / Payment / Contra / Journal  — BUSY exact
+        "Vch No.",         # blank = Busy auto-assigns  — BUSY exact
+        "Debit Ledger",    # ledger being debited (Bank A/c for Receipt; Expense/Party for Payment)
+        "Credit Ledger",   # ledger being credited (Party/Income for Receipt; Bank A/c for Payment)
+        "Amount",          # always positive  — BUSY exact
+        "Narration",       # optional  — BUSY exact
+        "Ref No.",         # cheque/UTR/NEFT ref  — BUSY exact
+        "Import Status",   # READY / UNMATCHED — ComplAI helper column (delete before import)
     ]
     _apply_header_style(ws3, bank_import_headers,
                         PatternFill("solid", fgColor="1F4E79"),
@@ -653,12 +658,20 @@ def export_bank(
         party_ledger = tx.matched_ledger if is_matched else "*** UNMATCHED — fill before import ***"
         import_status = "READY" if is_matched else "UNMATCHED"
 
+        # Receipt = money IN → Debit Bank A/c, Credit Party/Income
+        # Payment = money OUT → Debit Party/Expense, Credit Bank A/c
+        # Contra  = bank transfer → Debit destination bank, Credit source bank
+        is_receipt = vch_type == "Receipt"
+        is_payment = vch_type == "Payment"
+        debit_ledger  = "Bank A/c" if is_receipt else party_ledger
+        credit_ledger = party_ledger if is_receipt else "Bank A/c"
+
         ws3.append([
             _fmt_date_ddmmyyyy(tx.transaction_date),
             vch_type,
             "",              # Vch No — let Busy assign
-            "Bank A/c",      # CA replaces with their exact bank ledger name
-            party_ledger,
+            debit_ledger,    # Debit Ledger
+            credit_ledger,   # Credit Ledger
             amount,
             tx.narration or "",
             ref_no,
@@ -694,17 +707,20 @@ def export_bank(
     # ═══════════════════════════════════════════════════════
     ws4 = wb.create_sheet("Busy Bank Recon")
 
-    recon_headers = ["Date", "Description", "Withdrawal", "Deposit", "Balance"]
+    # BUSY Bank Statement Import EXACT 5-column format
+    # Administration → Import Data → Bank Statement
+    # These exact column names are required — BUSY maps them automatically
+    recon_headers = ["Date", "Particulars", "Withdrawal Amt.", "Deposit Amt.", "Balance"]
     _apply_header_style(ws4, recon_headers,
                         PatternFill("solid", fgColor="375623"),   # dark green header
                         Font(color="FFFFFF", bold=True))
 
     ws4.insert_rows(2)
     ws4.cell(row=2, column=1).value = (
-        "⚠ Bank Statement Reconciliation import. "
-        "Administration → Import Data → Bank Statement → select this file → sheet 'Busy Bank Recon'. "
-        "Withdrawal = money out (debit); Deposit = money in (credit). Balance = running balance. "
-        "Blank cells in Withdrawal/Deposit are intentional — do not fill 0."
+        "⚠ BUSY Bank Statement Reconciliation — EXACT FORMAT. "
+        "Import: Administration → Import Data → Bank Statement → select this file → sheet 'Busy Bank Recon'. "
+        "Column names match BUSY's expected headers exactly (Date, Particulars, Withdrawal Amt., Deposit Amt., Balance). "
+        "Blank cells in Withdrawal Amt./Deposit Amt. are intentional — BUSY requires blank (not 0) for the missing side."
     )
     ws4.cell(row=2, column=1).font = Font(italic=True, color="595959", size=9)
     ws4.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(recon_headers))
