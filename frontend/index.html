@@ -1172,7 +1172,7 @@
 					},
 				});
 				if (res.status === 401) {
-					logout();
+					if (TOKEN) logout();  // only force logout if we were actually logged in
 					return null;
 				}
 				return res;
@@ -1644,6 +1644,7 @@
 			// Poll every 8s — update badge + smart-update inbox if on WA tab
 			// Smart update means open accordions are NOT destroyed on each poll.
 			setInterval(async () => {
+				if (!TOKEN) return;  // don't poll (or reload) before login
 				const res = await api('/extract/whatsapp-inbox');
 				if (!res || !res.ok) return;
 				const data = await res.json();
