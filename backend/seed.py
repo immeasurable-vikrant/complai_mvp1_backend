@@ -23,9 +23,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── Edit these before running ──────────────────────────────
 FIRM = {
-    "name":             "Raja & Associates",
-    "email":            "raja@caoffice.in",
-    "password":         "change-me-123",        # raw password — gets hashed
+    "name":             "Mahajan Kohli & Co.",
+    "email":            "mahajan.kohli@caoffice.in",
+    "password":         "mahajankohli@12345",        # raw password — gets hashed
     "whatsapp_number":  "+91 98765 43210",
 }
 
