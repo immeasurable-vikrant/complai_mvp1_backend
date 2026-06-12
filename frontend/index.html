@@ -374,31 +374,34 @@
 		</nav>
 
 		<!-- ACCURACY BANNER -->
-		<div id="accuracy-banner" class="hidden fixed top-14 left-0 right-0 z-40 border-b border-[#e8d9cc]" style="background:#fdf4ef">
-			<div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-4 flex-wrap">
-				<div class="flex items-center gap-1.5 text-xs text-[#141413] flex-wrap gap-y-1">
-					<svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>
-					<span class="font-semibold text-brand-500 mr-1">Accuracy guide —</span>
-					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
-						<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-						Digital PDF &nbsp;<strong>90–98%</strong>
+		<div id="accuracy-banner" class="hidden fixed top-14 left-0 right-0 z-40 border-b-2 border-[#e8d9cc]" style="background:#fdf4ef">
+			<div class="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between gap-4 flex-wrap">
+				<div class="flex items-center gap-2.5 flex-wrap gap-y-2">
+					<div class="flex items-center gap-1.5">
+						<svg class="w-4.5 h-4.5 text-brand-500 flex-shrink-0" style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>
+						<span class="font-bold text-sm text-brand-500 tracking-wide">Accuracy Guide</span>
+						<span class="text-slate-400 text-sm font-medium">—</span>
+					</div>
+					<span class="inline-flex items-center gap-1.5 bg-white border border-[#e8d9cc] rounded-full px-3 py-1 text-sm font-medium shadow-sm">
+						<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block flex-shrink-0"></span>
+						Digital PDF &nbsp;<strong class="text-emerald-700">90–98%</strong>
 					</span>
-					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
-						<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-						Clear scanned PDF &nbsp;<strong>85–92%</strong>
+					<span class="inline-flex items-center gap-1.5 bg-white border border-[#e8d9cc] rounded-full px-3 py-1 text-sm font-medium shadow-sm">
+						<span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
+						Clear Scanned PDF &nbsp;<strong class="text-emerald-600">85–92%</strong>
 					</span>
-					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
-						<span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
-						WhatsApp photo &nbsp;<strong>70–80%</strong>
+					<span class="inline-flex items-center gap-1.5 bg-white border border-[#e8d9cc] rounded-full px-3 py-1 text-sm font-medium shadow-sm">
+						<span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block flex-shrink-0"></span>
+						WhatsApp Photo &nbsp;<strong class="text-amber-600">70–80%</strong>
 					</span>
-					<span class="inline-flex items-center gap-1 bg-white border border-[#e8d9cc] rounded-full px-2.5 py-0.5">
-						<span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
-						Blurry / low-light image &nbsp;<strong>50–70%</strong>
+					<span class="inline-flex items-center gap-1.5 bg-white border border-[#e8d9cc] rounded-full px-3 py-1 text-sm font-medium shadow-sm">
+						<span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block flex-shrink-0"></span>
+						Blurry / Low-light &nbsp;<strong class="text-red-500">50–70%</strong>
 					</span>
-					<span class="text-[#3d3d3b] ml-1">— always verify flagged fields before saving.</span>
+					<span class="text-slate-500 text-sm ml-1 hidden sm:inline">Always verify flagged fields ⚑ before export.</span>
 				</div>
-				<button onclick="document.getElementById('accuracy-banner').remove()" class="text-[#3d3d3b] hover:text-[#141413] flex-shrink-0 p-0.5 rounded hover:bg-[#e8d9cc] transition" title="Dismiss">
-					<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+				<button onclick="document.getElementById('accuracy-banner').remove()" class="text-slate-400 hover:text-slate-700 flex-shrink-0 p-1 rounded-full hover:bg-[#e8d9cc] transition" title="Dismiss">
+					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
 				</button>
 			</div>
 		</div>
